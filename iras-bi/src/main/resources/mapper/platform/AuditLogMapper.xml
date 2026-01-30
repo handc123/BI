@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.platform.mapper.AuditLogMapper">
+
+    <resultMap type="com.zjrcu.iras.bi.platform.domain.AuditLog" id="AuditLogResult">
+        <id     property="id"              column="id"              />
+        <result property="userId"          column="user_id"         />
+        <result property="userName"        column="user_name"       />
+        <result property="operation"       column="operation"       />
+        <result property="resourceType"    column="resource_type"   />
+        <result property="resourceId"      column="resource_id"     />
+        <result property="operationDetail" column="operation_detail" />
+        <result property="ipAddress"       column="ip_address"      />
+        <result property="createTime"      column="create_time"     />
+    </resultMap>
+
+    <sql id="selectAuditLogVo">
+        select id, user_id, user_name, operation, resource_type, resource_id, 
+               operation_detail, ip_address, create_time
+        from bi_audit_log
+    </sql>
+
+    <select id="selectAuditLogList" parameterType="com.zjrcu.iras.bi.platform.domain.AuditLog" resultMap="AuditLogResult">
+        <include refid="selectAuditLogVo"/>
+        <where>
+            <if test="userId != null">
+                AND user_id = #{userId}
+            </if>
+            <if test="userName != null and userName != ''">
+                AND user_name like concat('%', #{userName}, '%')
+            </if>
+            <if test="operation != null and operation != ''">
+                AND operation = #{operation}
+            </if>
+            <if test="resourceType != null and resourceType != ''">
+                AND resource_type = #{resourceType}
+            </if>
+            <if test="resourceId != null">
+                AND resource_id = #{resourceId}
+            </if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                AND create_time &gt;= #{params.beginTime}
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                AND create_time &lt;= #{params.endTime}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectAuditLogById" parameterType="Long" resultMap="AuditLogResult">
+        <include refid="selectAuditLogVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertAuditLog" parameterType="com.zjrcu.iras.bi.platform.domain.AuditLog" useGeneratedKeys="true" keyProperty="id">
+        insert into bi_audit_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="userName != null and userName != ''">user_name,</if>
+            <if test="operation != null and operation != ''">operation,</if>
+            <if test="resourceType != null and resourceType != ''">resource_type,</if>
+            <if test="resourceId != null">resource_id,</if>
+            <if test="operationDetail != null">operation_detail,</if>
+            <if test="ipAddress != null and ipAddress != ''">ip_address,</if>
+            <if test="createTime != null">create_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="userName != null and userName != ''">#{userName},</if>
+            <if test="operation != null and operation != ''">#{operation},</if>
+            <if test="resourceType != null and resourceType != ''">#{resourceType},</if>
+            <if test="resourceId != null">#{resourceId},</if>
+            <if test="operationDetail != null">#{operationDetail},</if>
+            <if test="ipAddress != null and ipAddress != ''">#{ipAddress},</if>
+            <if test="createTime != null">#{createTime},</if>
+        </trim>
+    </insert>
+
+    <delete id="deleteAuditLogByIds" parameterType="Long">
+        delete from bi_audit_log where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteAuditLogBeforeDays" parameterType="int">
+        delete from bi_audit_log 
+        where create_time &lt; DATE_SUB(NOW(), INTERVAL #{days} DAY)
+    </delete>
+
+</mapper>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.fieldquality.mapper.RuleInfoMapper">
+
+    <resultMap type="RuleInfo" id="RuleInfoResult">
+            <result property="id" column="id"/>
+            <result property="ruleId" column="rule_id"/>
+            <result property="ruleCode" column="rule_code"/>
+            <result property="ruleName" column="rule_name"/>
+            <result property="ruleDesc" column="rule_desc"/>
+            <result property="checkTable" column="check_table"/>
+            <result property="checkStrength" column="check_strength"/>
+            <result property="ruleTypeBig" column="rule_type_big"/>
+            <result property="ruleTypeSmall" column="rule_type_small"/>
+            <result property="isActive" column="is_active"/>
+            <result property="startTime" column="start_time"/>
+            <result property="endTime" column="end_time"/>
+            <result property="isLatest" column="is_latest"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectRuleInfoVo">
+        select id, rule_id, rule_code, rule_name, rule_desc, check_table, check_strength, rule_type_big, rule_type_small, is_active, start_time, end_time, is_latest, created_time, updated_time
+        from rule_info
+    </sql>
+    <select id="selectRuleInfoByRuleCode" resultMap="RuleInfoResult">
+        <include refid="selectRuleInfoVo"/>
+        where rule_code = #{ruleCode} and is_active = 1
+        and NOW() BETWEEN start_time AND end_time;
+    </select>
+    <resultMap id="RuleInfoVoResultMap" type="com.zjrcu.iras.bi.fieldquality.domain.vo.RuleInfoVo">
+        <id column="rule_code" property="ruleCode"/>
+        <result column="rule_desc" property="ruleDesc"/>
+        <result column="check_table" property="checkTable"/>
+        <result column="check_strength" property="checkStrength"/>
+        <result column="rule_type_big" property="ruleTypeBig"/>
+        <result column="rule_type_small" property="ruleTypeSmall"/>
+        <collection property="monthPassRates" ofType="com.zjrcu.iras.bi.fieldquality.domain.vo.MonthPassRateVo">
+            <result column="month" property="month"/>
+            <result column="pass_rate" property="passRate"/>
+        </collection>
+    </resultMap>
+    <select id="selectRuleInfoPassByRuleCode" resultMap="RuleInfoVoResultMap">
+        SELECT
+            r.rule_code,
+            r.rule_desc,
+            r.check_table,
+            r.check_strength,
+            r.rule_type_big,
+            r.rule_type_small,
+            DATE_FORMAT(LAST_DAY(orr.data_date), '%Y-%m') AS month,
+            orr.pass_rate_now AS pass_rate
+        FROM
+            rule_info r
+                INNER JOIN
+            org_rule_improve_rate_rank orr
+            ON r.rule_id = orr.rule_id
+                AND r.rule_code = orr.rule_code
+        WHERE
+            r.rule_code = #{ruleCode}
+          AND orr.org_name = #{orgName}
+          AND r.is_active = 1
+          AND NOW() BETWEEN r.start_time AND r.end_time
+          AND orr.data_date IN (
+                                LAST_DAY(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)),
+                                LAST_DAY(DATE_SUB(CURDATE(), INTERVAL 2 MONTH)),
+                                LAST_DAY(DATE_SUB(CURDATE(), INTERVAL 3 MONTH)),
+                                LAST_DAY(DATE_SUB(CURDATE(), INTERVAL 4 MONTH)),
+                                LAST_DAY(DATE_SUB(CURDATE(), INTERVAL 5 MONTH)),
+                                LAST_DAY(DATE_SUB(CURDATE(), INTERVAL 6 MONTH))
+            )
+          AND orr.compare_days = 30
+        ORDER BY
+            month ASC
+    </select>
+
+
+</mapper>

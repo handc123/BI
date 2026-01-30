@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.platform.mapper.DashboardMapper">
+    
+    <resultMap type="com.zjrcu.iras.bi.platform.domain.Dashboard" id="DashboardResult">
+        <result property="id"    column="id"    />
+        <result property="dashboardName"    column="dashboard_name"    />
+        <result property="dashboardDesc"    column="dashboard_desc"    />
+        <result property="theme"    column="theme"    />
+        <result property="canvasConfig"    column="canvas_config"    />
+        <result property="globalStyle"    column="global_style"    />
+        <result property="status"    column="status"    />
+        <result property="publishedVersion"    column="published_version"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+        <result property="delFlag"    column="del_flag"    />
+    </resultMap>
+
+    <sql id="selectDashboardVo">
+        select id, dashboard_name, dashboard_desc, theme, canvas_config, global_style, 
+               status, published_version, create_by, create_time, update_by, update_time, 
+               remark, del_flag
+        from bi_dashboard
+    </sql>
+
+    <select id="selectDashboardList" parameterType="com.zjrcu.iras.bi.platform.domain.Dashboard" resultMap="DashboardResult">
+        <include refid="selectDashboardVo"/>
+        <where>
+            del_flag = '0'
+            <if test="dashboardName != null and dashboardName != ''">
+                AND dashboard_name like concat('%', #{dashboardName}, '%')
+            </if>
+            <if test="theme != null and theme != ''">
+                AND theme = #{theme}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+    
+    <select id="selectDashboardById" parameterType="Long" resultMap="DashboardResult">
+        <include refid="selectDashboardVo"/>
+        where id = #{id} and del_flag = '0'
+    </select>
+
+    <select id="selectDashboardByName" parameterType="String" resultMap="DashboardResult">
+        <include refid="selectDashboardVo"/>
+        where dashboard_name = #{dashboardName} and del_flag = '0'
+    </select>
+        
+    <insert id="insertDashboard" parameterType="com.zjrcu.iras.bi.platform.domain.Dashboard" useGeneratedKeys="true" keyProperty="id">
+        insert into bi_dashboard
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="dashboardName != null and dashboardName != ''">dashboard_name,</if>
+            <if test="dashboardDesc != null">dashboard_desc,</if>
+            <if test="theme != null">theme,</if>
+            <if test="canvasConfig != null">canvas_config,</if>
+            <if test="globalStyle != null">global_style,</if>
+            <if test="status != null">status,</if>
+            <if test="publishedVersion != null">published_version,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="dashboardName != null and dashboardName != ''">#{dashboardName},</if>
+            <if test="dashboardDesc != null">#{dashboardDesc},</if>
+            <if test="theme != null">#{theme},</if>
+            <if test="canvasConfig != null">#{canvasConfig},</if>
+            <if test="globalStyle != null">#{globalStyle},</if>
+            <if test="status != null">#{status},</if>
+            <if test="publishedVersion != null">#{publishedVersion},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate()
+         </trim>
+    </insert>
+
+    <update id="updateDashboard" parameterType="com.zjrcu.iras.bi.platform.domain.Dashboard">
+        update bi_dashboard
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="dashboardName != null and dashboardName != ''">dashboard_name = #{dashboardName},</if>
+            <if test="dashboardDesc != null">dashboard_desc = #{dashboardDesc},</if>
+            <if test="theme != null">theme = #{theme},</if>
+            <if test="canvasConfig != null">canvas_config = #{canvasConfig},</if>
+            <if test="globalStyle != null">global_style = #{globalStyle},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="publishedVersion != null">published_version = #{publishedVersion},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteDashboardById" parameterType="Long">
+        update bi_dashboard set del_flag = '1' where id = #{id}
+    </delete>
+
+    <delete id="deleteDashboardByIds" parameterType="Long">
+        update bi_dashboard set del_flag = '1' where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <update id="publishDashboard">
+        update bi_dashboard
+        set status = '1',
+            published_version = #{publishedVersion},
+            update_time = sysdate()
+        where id = #{id}
+    </update>
+</mapper>

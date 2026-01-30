@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.indicatorquality.mapper.OrgIndicatorDeviationRankMapper">
+
+    <resultMap type="OrgIndicatorDeviationRank" id="OrgIndicatorDeviationRankResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="orgId" column="org_id"/>
+            <result property="orgName" column="org_name"/>
+            <result property="indicatorId" column="indicator_id"/>
+            <result property="indicatorName" column="indicator_name"/>
+            <result property="deviationValue" column="deviation_value"/>
+            <result property="rankValue" column="rank_value"/>
+            <result property="rankChange" column="rank_change"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectOrgIndicatorDeviationRankVo">
+        select id, data_date, org_id, org_name, indicator_id, indicator_name, deviation_value, rank_value, rank_change, created_time, updated_time
+        from org_indicator_deviation_rank
+    </sql>
+    <select id="selectOrgIndicatorDeviationRank" resultMap="OrgIndicatorDeviationRankResult">
+        <include refid="selectOrgIndicatorDeviationRankVo"/>
+        order by deviation_value desc
+    </select>
+    <select id="selectOrgIndicatorDeviationRankPage" resultMap="OrgIndicatorDeviationRankResult">
+        <include refid="selectOrgIndicatorDeviationRankVo"/>
+        <where>
+            <if test="dataDate != null and dataDate != ''">
+                and data_date = #{dataDate}
+            </if>
+        </where>
+        order by deviation_value desc
+    </select>
+    <select id="selectOrgIndicatorDeviationRankByOrgName" resultMap="OrgIndicatorDeviationRankResult">
+        <include refid="selectOrgIndicatorDeviationRankVo"/>
+        where org_name = #{orgName}
+        <if test="dataDate != null and dataDate != ''">
+            and data_date = #{dataDate}
+        </if>
+        order by deviation_value desc
+    </select>
+
+
+</mapper>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.globaloverview.mapper.KeyRiskMonitoring.NonPerformingLoanTransactionMapper">
+    <resultMap id="BaseResultMap" type="com.zjrcu.iras.bi.globaloverview.domain.model.KeyRiskMonitoring.NonPerformingLoanTransaction">
+        <id property="id" column="id" />
+        <result property="orgName" column="org_name" />
+        <result property="regionName" column="region_name" />
+        <result property="dataDate" column="data_date"/>
+        <result property="newNonPerformingLoanAmount" column="new_non_performing_loan_amount" />
+        <result property="disposedNonPerformingLoanAmount" column="disposed_non_performing_loan_amount" />
+        <result property="createTime" column="created_time"/>
+        <result property="updateTime" column="updated_time"/>
+    </resultMap>
+    <select id="selectNonPerformingLoanTransaction" resultMap="BaseResultMap">
+        select * from non_performing_loan_transaction
+        where
+          region_name = #{globalOverviewRequestQO.regionName}
+        <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate!= ''">
+            AND data_date >= #{globalOverviewRequestQO.startDate}
+        </if>
+        <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate!= ''">
+            AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+        </if>
+        order by data_date  asc
+    </select>
+</mapper>

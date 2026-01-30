@@ -1,0 +1,241 @@
+// 质量看板样式
+.selected-container {
+  position: absolute;
+  top: 16px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  z-index: 10;
+}
+
+.card-box{
+  width: 49%;
+  margin: 10px;
+  height: 500px;
+  overflow-x: auto;
+}
+
+.card-boxs{
+  width: 20%;
+  height: 670px;
+  border: solid 1px #ccc;
+  margin: 5px;
+}
+
+.head-title{
+  font-size: 17px;
+  letter-spacing: 0.7px;
+  font-weight: bold;
+}
+
+.boxs-title{
+  font-size: 16px;
+  letter-spacing: 0.7px;
+  color: white
+}
+
+.head-backgound{
+  background: linear-gradient(to left, rgba(75, 122, 224, 1), rgba(75, 122, 224, 0.4));
+  padding: 10px;
+}
+
+.boxs-number{
+  font-size: 30px;
+  letter-spacing: 0.7px;
+  color: white;
+}
+
+.bold-text{
+  font-weight: bold;
+}
+
+.bolder-text{
+  font-weight: bolder;
+}
+
+.display-flex{
+  display: flex;
+}
+
+.alicenter{
+  align-items: center;
+}
+
+.justify-between{
+  justify-content: space-between;
+}
+
+.font-size-12{
+  font-size: 12px;
+}
+
+.font-size-14{
+  font-size: 14px;
+}
+
+.font-size-16{
+  font-size: 16px;
+}
+
+.font-size-18{
+  font-size: 18px;
+}
+
+.font-size-20{
+  font-size: 20px;
+}
+
+.font-size-22{
+  font-size: 22px;
+}
+
+.font-size-24{
+  font-size: 24px;
+  margin: 13px 0;
+}
+
+.font-size-30{
+  font-size: 30px;
+}
+
+.font-size-50{
+  font-size: 50px;
+  margin: 13px 0;
+}
+
+.font-size-60{
+  font-size: 60px;
+}
+
+.black-circle {
+  width: 100px;        /* 宽度 */
+  height: 100px;       /* 高度（与宽度一致确保圆形） */
+  border: 2px solid #000; /* 黑色边框 */
+  border-radius: 50%;  /* 圆角50%形成圆形 */
+  background-color: transparent; /* 透明填充 */
+  margin: 20px;
+
+  /* 文字居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transpaarent-circle {
+  width: 100px;        /* 宽度 */
+  height: 100px;       /* 高度（与宽度一致确保圆形） */
+  border-radius: 50%;  /* 圆角50%形成圆形 */
+  background-color: rgb(235, 241, 253); /* 透明填充 */
+  margin: 20px;
+
+  /* 文字居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.justify-direction {
+  flex-direction: column;
+  justify-content: center;
+}
+
+.color-red {
+  color: red;
+}
+
+.color-green {
+  color: green;
+}
+
+.margin-bottom-10 {
+  margin-bottom: 10px;
+}
+
+.margin-left-10 {
+  margin-left: 10px;
+}
+
+.margin-left-50 {
+  margin-left: 50px;
+}
+
+.margin-top--10 {
+  margin-top: -10px;
+}
+
+.margin-top-10 {
+  margin-top: 10px;
+}
+
+.overflow-true {
+  overflow: auto;
+}
+
+.overflow-x-true {
+  overflow-x: auto;
+}
+
+.float-right {
+  float: right;
+}
+
+.box-title {
+  margin: 5px 15px;
+}
+
+.el-table::before {
+  width: 0px;
+}
+
+.width-100 {
+  width: 100%;
+}
+
+.height-10 {
+  height: 10px;
+}
+
+/* 圆圈背景样式 */
+.circle-bg {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px; /* 文字垂直居中 */
+  border-radius: 50%; /* 圆形 */
+  background-color: rgb(42,98,218); /* 圆圈背景色（可自定义） */
+  color: white; /* 文字颜色 */
+}
+
+/* 普通序号样式 */
+.normal-index {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px; /* 文字垂直居中 */
+  border-radius: 50%; /* 圆形 */
+  background-color: rgb(218,220,224); /* 圆圈背景色（可自定义） */
+  color: rgb(89,89,89); /* 文字颜色 */
+}
+
+.color-white {
+  color: white;
+}
+
+.icon-title {
+  color: rgb(42, 98, 218);
+  font-size: 16px;
+  margin-right: 5px;
+  font-weight: bold;
+}
+
+.backgoundcolor-ccc {
+  background-color: #ccc;
+  border-radius: 5px;
+  padding: 5px;
+}
+
+.type-text-button {
+  padding: 0;
+}

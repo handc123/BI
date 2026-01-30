@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.indicatorquality.mapper.IndicatorDeviationStatMapper">
+
+    <resultMap type="IndicatorDeviationStat" id="IndicatorDeviationStatResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="indicatorId" column="indicator_id"/>
+            <result property="indicatorCode" column="indicator_code"/>
+            <result property="indicatorDeviationType" column="indicator_deviation_type"/>
+            <result property="count" column="count"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectIndicatorDeviationStatVo">
+        select id, data_date, indicator_id, indicator_code, gt_2pct_count, no_deviation_count, created_time, updated_time
+        from indicator_deviation_stat
+    </sql>
+
+
+    <select id="selectIndicatorDeviationStat" resultMap="IndicatorDeviationStatResult">
+        select * from indicator_deviation_stat
+        where indicator_deviation_type = #{indicatorDeviationType}
+        order by count desc limit 10
+    </select>
+</mapper>

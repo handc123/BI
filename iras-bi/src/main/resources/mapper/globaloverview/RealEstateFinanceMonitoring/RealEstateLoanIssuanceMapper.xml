@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.globaloverview.mapper.RealEstateFinanceMonitoring.RealEstateLoanIssuanceMapper">
+    <resultMap id="BaseResultMap" type="com.zjrcu.iras.bi.globaloverview.domain.model.RealEstateFinanceMonitoring.RealEstateLoanIssuance">
+        <result property="dataDate" column="data_date" />
+        <result property="orgName" column="org_name" />
+        <result property="regionName" column="region_name" />
+        <result property="ownershipType" column="ownership_type" />
+        <result property="issuedAmount" column="issued_amount" />
+        <result property="avgInterestRate" column="avg_interest_rate" />
+
+    </resultMap>
+    <select id="selectRealEstateLoanIssuance" resultMap="BaseResultMap">
+        SELECT
+        data_date,
+        ownership_type,
+        SUM(issued_amount) AS issued_amount,
+        AVG(avg_interest_rate) AS avg_interest_rate
+        FROM real_estate_loan_issuance_daily
+        <where>
+            region_name = #{globalOverviewRequestQO.regionName}
+
+            <!-- 日期过滤 -->
+            <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate != ''">
+                AND data_date >= #{globalOverviewRequestQO.startDate}
+            </if>
+            <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate != ''">
+                AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+            </if>
+
+
+            <if test="globalOverviewRequestQO.ownershipType != null and globalOverviewRequestQO.ownershipType != ''">
+                AND ownership_type = #{globalOverviewRequestQO.ownershipType}
+            </if>
+        </where>
+
+        GROUP BY data_date, ownership_type
+        ORDER BY data_date ASC
+    </select>
+
+    <select id="selectAllRealEstateLoanIssuance" resultMap="BaseResultMap">
+        SELECT
+        data_date,
+        SUM(issued_amount) AS issued_amount,
+        AVG(avg_interest_rate) AS avg_interest_rate
+        FROM real_estate_loan_issuance_daily
+        <where>
+            region_name = #{globalOverviewRequestQO.regionName}
+
+            <!-- 日期过滤 -->
+            <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate != ''">
+                AND data_date >= #{globalOverviewRequestQO.startDate}
+            </if>
+            <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate != ''">
+                AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+            </if>
+        </where>
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+
+
+</mapper>

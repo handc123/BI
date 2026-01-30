@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.platform.mapper.QueryConditionMapper">
+    
+    <resultMap type="com.zjrcu.iras.bi.platform.domain.QueryCondition" id="QueryConditionResult">
+        <result property="id"    column="id"    />
+        <result property="dashboardId"    column="dashboard_id"    />
+        <result property="componentId"    column="component_id"    />
+        <result property="conditionName"    column="condition_name"    />
+        <result property="conditionType"    column="condition_type"    />
+        <result property="displayOrder"    column="display_order"    />
+        <result property="isRequired"    column="is_required"    />
+        <result property="isVisible"    column="is_visible"    />
+        <result property="defaultValue"    column="default_value"    />
+        <result property="config"    column="config"    />
+        <result property="parentConditionId"    column="parent_condition_id"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectConditionVo">
+        select id, dashboard_id, component_id, condition_name, condition_type, display_order, is_required, 
+               is_visible, default_value, config, parent_condition_id, create_time, update_time
+        from bi_query_condition
+    </sql>
+
+    <select id="selectConditionList" parameterType="com.zjrcu.iras.bi.platform.domain.QueryCondition" resultMap="QueryConditionResult">
+        <include refid="selectConditionVo"/>
+        <where>  
+            <if test="dashboardId != null">
+                AND dashboard_id = #{dashboardId}
+            </if>
+            <if test="componentId != null">
+                AND component_id = #{componentId}
+            </if>
+            <if test="conditionName != null and conditionName != ''">
+                AND condition_name like concat('%', #{conditionName}, '%')
+            </if>
+            <if test="conditionType != null and conditionType != ''">
+                AND condition_type = #{conditionType}
+            </if>
+            <if test="isRequired != null and isRequired != ''">
+                AND is_required = #{isRequired}
+            </if>
+            <if test="isVisible != null and isVisible != ''">
+                AND is_visible = #{isVisible}
+            </if>
+        </where>
+        order by display_order asc, create_time asc
+    </select>
+    
+    <select id="selectConditionById" parameterType="Long" resultMap="QueryConditionResult">
+        <include refid="selectConditionVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectConditionByDashboardId" parameterType="Long" resultMap="QueryConditionResult">
+        <include refid="selectConditionVo"/>
+        where dashboard_id = #{dashboardId}
+        order by display_order asc, create_time asc
+    </select>
+        
+    <insert id="insertCondition" parameterType="com.zjrcu.iras.bi.platform.domain.QueryCondition" useGeneratedKeys="true" keyProperty="id">
+        insert into bi_query_condition
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="dashboardId != null">dashboard_id,</if>
+            <if test="componentId != null">component_id,</if>
+            <if test="conditionName != null and conditionName != ''">condition_name,</if>
+            <if test="conditionType != null and conditionType != ''">condition_type,</if>
+            <if test="displayOrder != null">display_order,</if>
+            <if test="isRequired != null">is_required,</if>
+            <if test="isVisible != null">is_visible,</if>
+            <if test="defaultValue != null">default_value,</if>
+            <if test="config != null">config,</if>
+            <if test="parentConditionId != null">parent_condition_id,</if>
+            create_time
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="dashboardId != null">#{dashboardId},</if>
+            <if test="componentId != null">#{componentId},</if>
+            <if test="conditionName != null and conditionName != ''">#{conditionName},</if>
+            <if test="conditionType != null and conditionType != ''">#{conditionType},</if>
+            <if test="displayOrder != null">#{displayOrder},</if>
+            <if test="isRequired != null">#{isRequired},</if>
+            <if test="isVisible != null">#{isVisible},</if>
+            <if test="defaultValue != null">#{defaultValue},</if>
+            <if test="config != null">#{config},</if>
+            <if test="parentConditionId != null">#{parentConditionId},</if>
+            sysdate()
+         </trim>
+    </insert>
+
+    <update id="updateCondition" parameterType="com.zjrcu.iras.bi.platform.domain.QueryCondition">
+        update bi_query_condition
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="componentId != null">component_id = #{componentId},</if>
+            <if test="conditionName != null and conditionName != ''">condition_name = #{conditionName},</if>
+            <if test="conditionType != null and conditionType != ''">condition_type = #{conditionType},</if>
+            <if test="displayOrder != null">display_order = #{displayOrder},</if>
+            <if test="isRequired != null">is_required = #{isRequired},</if>
+            <if test="isVisible != null">is_visible = #{isVisible},</if>
+            <if test="defaultValue != null">default_value = #{defaultValue},</if>
+            <if test="config != null">config = #{config},</if>
+            <if test="parentConditionId != null">parent_condition_id = #{parentConditionId},</if>
+            update_time = sysdate()
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteConditionById" parameterType="Long">
+        delete from bi_query_condition where id = #{id}
+    </delete>
+
+    <delete id="deleteConditionByIds" parameterType="Long">
+        delete from bi_query_condition where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteConditionByDashboardId" parameterType="Long">
+        delete from bi_query_condition where dashboard_id = #{dashboardId}
+    </delete>
+
+    <select id="selectConditionsByComponentId" parameterType="Long" resultMap="QueryConditionResult">
+        <include refid="selectConditionVo"/>
+        where component_id = #{componentId}
+        order by display_order asc, create_time asc
+    </select>
+
+    <update id="updateConditionDisplayOrder">
+        update bi_query_condition
+        set display_order = #{displayOrder},
+            update_time = sysdate()
+        where id = #{conditionId}
+    </update>
+
+    <delete id="deleteConditionByComponentId" parameterType="Long">
+        delete from bi_query_condition where component_id = #{componentId}
+    </delete>
+
+    <update id="batchUpdateDisplayOrder" parameterType="java.util.List">
+        <foreach collection="list" item="item" separator=";">
+            update bi_query_condition
+            set display_order = #{item.displayOrder},
+                update_time = sysdate()
+            where id = #{item.conditionId}
+        </foreach>
+    </update>
+
+    <select id="selectConditionsByIds" parameterType="java.util.List" resultMap="QueryConditionResult">
+        <include refid="selectConditionVo"/>
+        where id in
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        order by display_order asc, create_time asc
+    </select>
+</mapper>

@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.globaloverview.mapper.RealEstateFinanceMonitoring.RealEstateLoanDetailMapper">
+    <resultMap id="BaseResultMap" type="com.zjrcu.iras.bi.globaloverview.domain.model.RealEstateFinanceMonitoring.RealEstateLoanDetail">
+        <id property="id" column="id" />
+        <result property="dataDate" column="data_date" />
+        <result property="orgName" column="org_name" />
+        <result property="regionName" column="region_name" />
+        <result property="orgType" column="org_type" />
+        <result property="loanCategory" column="loan_category" />
+        <result property="realEstateCollateralLoan" column="real_estate_collateral_loan" />
+        <result property="realEstateLoanBalance" column="real_estate_loan_balance" />
+        <result property="realEstateLoanRatio" column="real_estate_loan_ratio" />
+        <result property="nonPerformingLoan" column="non_performing_loan" />
+    </resultMap>
+    <resultMap id="RealEstateLoanVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.RealEstateFinanceMonitoring.RealEstateFinanceLoanVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="realEstateLoanRatio" column="real_estate_loan_ratio"/>
+        <result property="realEstateLoanBalance" column="real_estate_loan_balance"/>
+    </resultMap>
+
+
+
+    <select id="selectRealEstateLoanSummary" resultMap="RealEstateLoanVoResult">
+        SELECT
+        data_date,
+        SUM(real_estate_loan_balance) AS real_estate_loan_balance,
+        SUM(real_estate_loan_ratio) AS real_estate_loan_ratio
+        FROM
+        real_estate_loan_detail
+
+        WHERE region_name = #{globalOverviewRequestQO.regionName}
+        <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate != ''">
+            AND data_date >= #{globalOverviewRequestQO.startDate}
+        </if>
+        <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate != ''">
+            AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+        </if>
+
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+    <select id="selectRealEstateCollateralLoan" resultMap="RealEstateLoanVoResult">
+        SELECT
+        data_date,
+        SUM(real_estate_loan_balance) AS real_estate_loan_balance
+        FROM
+        real_estate_loan_detail
+        WHERE region_name = #{globalOverviewRequestQO.regionName}
+        <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate != ''">
+            AND data_date >= #{globalOverviewRequestQO.startDate}
+        </if>
+        <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate != ''">
+            AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+        </if>
+            AND real_estate_collateral_loan = 1
+
+        group by data_date
+        order by data_date  asc
+    </select>
+
+    <resultMap id="RealEstateLoanCategoryVOResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.RealEstateFinanceMonitoring.RealEstateLoanCategoryVO">
+        <result property="category" column="group_field"/>
+        <result property="loanBalance" column="total_loan_balance"/>
+    </resultMap>
+
+    <select id="selectRealEstateLoanIssuanceByGroup" resultMap="RealEstateLoanCategoryVOResult">
+        SELECT
+        <if test="globalOverviewRequestQO.groupName == 'TYPE'">
+            loan_category AS group_field,
+        </if>
+        <if test="globalOverviewRequestQO.groupName == 'REGION'">
+            region_name AS group_field,
+        </if>
+        <if test="globalOverviewRequestQO.groupName == 'ORG'">
+            org_name AS group_field,
+        </if>
+        SUM(real_estate_loan_balance) AS total_loan_balance
+        FROM real_estate_loan_detail
+        <where>
+
+            region_name = #{globalOverviewRequestQO.regionName}
+
+            <if test="globalOverviewRequestQO.dataDate != null">
+                AND data_date = #{globalOverviewRequestQO.dataDate}
+            </if>
+        </where>
+
+        <!-- 分组 -->
+        <if test="globalOverviewRequestQO.groupName == 'TYPE'">
+            GROUP BY loan_category
+        </if>
+        <if test="globalOverviewRequestQO.groupName == 'REGION'">
+            GROUP BY region_name
+        </if>
+        <if test="globalOverviewRequestQO.groupName == 'ORG'">
+            GROUP BY org_name
+        </if>
+    </select>
+
+
+    <resultMap id="PersonRealEstateLoanVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.RealEstateFinanceMonitoring.PersonRealEstateLoanVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="personRealEstateLoanBalance" column="real_estate_loan_balance"/>
+        <result property="personRealEstateLoanRatio" column="loan_category_proportion"/>
+    </resultMap>
+    <select id="selectPersonRealEstateLoanSummary" resultMap="PersonRealEstateLoanVoResult">
+        select
+        data_date,
+        SUM(real_estate_loan_balance) AS real_estate_loan_balance,
+        SUM(loan_category_proportion) AS loan_category_proportion
+        from real_estate_loan_detail
+        <where>
+            region_name = #{globalOverviewRequestQO.regionName}
+        and loan_category='个人住房贷款'
+        <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate != ''">
+            AND data_date >= #{globalOverviewRequestQO.startDate}
+        </if>
+        <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate != ''">
+            AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+        </if>
+        </where>
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+
+    <resultMap id="RealEstateNonPerformingLoanVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.RealEstateFinanceMonitoring.RealEstateNonPerformingLoanVo">
+        <result property="dataDate" column="data_date" />
+        <result property="realEstateNonPerformingLoanBalance" column="real_estate_loan_balance" />
+        <result property="realEstateNonPerformingLoanRatio" column="non_performing_loan_proportion" />
+    </resultMap>
+    <select id="selectRealEstateNonPerformingLoan" resultMap="RealEstateNonPerformingLoanVoResult">
+        select
+        data_date,
+        SUM(real_estate_loan_balance) AS real_estate_loan_balance,
+        SUM(non_performing_loan_proportion) AS non_performing_loan_proportion
+        from real_estate_loan_detail
+        where
+        region_name = #{globalOverviewRequestQO.regionName}
+        and non_performing_loan =1
+        <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate != ''">
+            AND data_date >= #{globalOverviewRequestQO.startDate}
+        </if>
+        <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate != ''">
+            AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+        </if>
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+</mapper>

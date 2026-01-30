@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.platform.mapper.VisualizationMapper">
+
+    <resultMap type="Visualization" id="VisualizationResult">
+        <id     property="id"         column="id"          />
+        <result property="name"       column="name"        />
+        <result property="datasetId"  column="dataset_id"  />
+        <result property="type"       column="type"        />
+        <result property="config"     column="config"      />
+        <result property="createBy"   column="create_by"   />
+        <result property="createTime" column="create_time" />
+        <result property="updateBy"   column="update_by"   />
+        <result property="updateTime" column="update_time" />
+        <result property="remark"     column="remark"      />
+    </resultMap>
+
+    <sql id="selectVisualizationVo">
+        select id, name, dataset_id, type, config, create_by, create_time, update_by, update_time, remark
+        from bi_visualization
+    </sql>
+
+    <select id="selectVisualizationList" parameterType="Visualization" resultMap="VisualizationResult">
+        <include refid="selectVisualizationVo"/>
+        <where>
+            <if test="name != null and name != ''">
+                AND name like concat('%', #{name}, '%')
+            </if>
+            <if test="datasetId != null">
+                AND dataset_id = #{datasetId}
+            </if>
+            <if test="type != null and type != ''">
+                AND type = #{type}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectVisualizationById" parameterType="Long" resultMap="VisualizationResult">
+        <include refid="selectVisualizationVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectVisualizationByDatasetId" parameterType="Long" resultMap="VisualizationResult">
+        <include refid="selectVisualizationVo"/>
+        where dataset_id = #{datasetId}
+        order by create_time desc
+    </select>
+
+    <insert id="insertVisualization" parameterType="Visualization" useGeneratedKeys="true" keyProperty="id">
+        insert into bi_visualization
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">name,</if>
+            <if test="datasetId != null">dataset_id,</if>
+            <if test="type != null and type != ''">type,</if>
+            <if test="config != null and config != ''">config,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="datasetId != null">#{datasetId},</if>
+            <if test="type != null and type != ''">#{type},</if>
+            <if test="config != null and config != ''">#{config},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateVisualization" parameterType="Visualization">
+        update bi_visualization
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="datasetId != null">dataset_id = #{datasetId},</if>
+            <if test="type != null and type != ''">type = #{type},</if>
+            <if test="config != null and config != ''">config = #{config},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteVisualizationById" parameterType="Long">
+        delete from bi_visualization where id = #{id}
+    </delete>
+
+    <delete id="deleteVisualizationByIds" parameterType="Long">
+        delete from bi_visualization where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

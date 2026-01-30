@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.globaloverview.mapper.CreditRiskMonitoring.CreditRiskDetailMapper">
+
+    <resultMap id="BaseResultType" type="com.zjrcu.iras.bi.globaloverview.domain.model.CreditRiskMonitoring.NonPerformingLoanDetail">
+        <id property="id" column="id"/>
+        <result property="orgName" column="org_name"/>
+        <result property="regionName" column="region_name"/>
+        <result property="dataDate" column="data_date"/>
+        <result property="nonPerformingLoanBalance" column="non_performing_loan_balance"/>
+        <result property="nonPerformingLoanRatio" column="non_performing_loan_ratio"/>
+        <result property="dailyNewNplAmount" column="daily_new_npl_amount"/>
+        <result property="dailyLoanDisposalAmount" column="daily_loan_disposal_amount"/>
+        <result property="yearLoanDisposalAmount" column="year_loan_disposal_amount"/>
+        <result property="disposalType" column="disposal_type"/>
+        <result property="industryName" column="industry_name"/>
+        <result property="guaranteeType" column="guarantee_type"/>
+        <result property="customerType" column="customer_type"/>
+        <result property="overdue" column="overdue"/>
+        <result property="overduePeriod" column="overdue_period"/>
+        <result property="overdueNplProportion" column="overdue_npl_proportion"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <resultMap id="NonPerformingBalanceRatioVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.NonPerformingBalanceRatioVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="nonPerformingLoanBalance" column="non_performing_loan_balance"/>
+        <result property="nonPerformingLoanRatio" column="non_performing_loan_ratio"/>
+    </resultMap>
+    <select id="selectNonPerformingLoanSummary" resultMap="NonPerformingBalanceRatioVoResult">
+        SELECT
+            data_date,
+            SUM(non_performing_loan_balance) AS non_performing_loan_balance,
+            SUM(non_performing_loan_ratio) AS non_performing_loan_ratio
+        FROM
+            non_performing_loan_detail
+        where
+            region_name = #{qo.regionName}
+            <if test="qo.startDate != null and qo.startDate!= ''">
+                AND data_date >= #{qo.startDate}
+            </if>
+            <if test="qo.endDate != null and qo.endDate!= ''">
+                AND data_date &lt;= #{qo.endDate}
+            </if>
+        GROUP BY
+        data_date
+        ORDER BY
+        data_date ASC
+    </select>
+    <resultMap id="OverdueLoanVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.OverdueLoanVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="overdueLoanBalance" column="non_performing_loan_balance"/>
+        <result property="overdueLoanProportion" column="non_performing_loan_ratio"/>
+    </resultMap>
+
+    <select id="selectOverdueLoanPeriod" resultMap="OverdueLoanVoResult">
+        select data_date, non_performing_loan_balance, non_performing_loan_ratio
+        from non_performing_loan_detail
+        <where>
+            overdue_period = #{qo.overduePeriod}
+            and overdue = 1
+            and region_name = #{qo.regionName}
+
+
+            <if test="qo.startDate != null and qo.startDate != '' ">
+                and data_date >= #{qo.startDate}
+            </if>
+            <if test="qo.endDate != null and qo.endDate != '' ">
+                and data_date &lt;= #{qo.endDate}
+            </if>
+        </where>
+        order by data_date asc
+    </select>
+
+    <resultMap id="OverdueLoanProportionVo" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.OverdueLoanProportionVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="totalOverdueNplProportion" column="total_overdue_npl_proportion"/>
+        <result property="overdue60NplProportion" column="overdue_60_npl_proportion"/>
+        <result property="overdue90NplProportion" column="overdue_90_npl_proportion"/>
+    </resultMap>
+
+    <select id="selectOverdueLoanProportion" resultMap="OverdueLoanProportionVo">
+        SELECT
+        data_date,
+        AVG(CASE WHEN overdue = 1 THEN overdue_npl_proportion ELSE NULL END)  AS total_overdue_npl_proportion,
+        AVG(CASE WHEN overdue_period = 2 THEN overdue_npl_proportion ELSE NULL END) AS overdue_60_npl_proportion,
+        AVG(CASE WHEN overdue_period = 3 THEN overdue_npl_proportion ELSE NULL END) AS overdue_90_npl_proportion
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+        <if test="qo.startDate != null and qo.startDate != ''">
+            AND data_date &gt;= #{qo.startDate}
+        </if>
+        <if test="qo.endDate != null and qo.endDate != ''">
+            AND data_date &lt;= #{qo.endDate}
+        </if>
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+
+    <resultMap id="NonPerformingLoanIndustryVo" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.NonPerformingLoanIndustryVo">
+        <result property="industryName" column="industry_name"/>
+        <result property="nonPerformingLoanBalance" column="non_performing_loan_balance"/>
+    </resultMap>
+
+    <select id="selectNonPerformingLoanByIndustry" resultMap="NonPerformingLoanIndustryVo">
+        SELECT
+            industry_name,
+            SUM(non_performing_loan_balance) AS non_performing_loan_balance
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+          AND data_date = #{qo.dataDate}
+        GROUP BY industry_name
+        ORDER BY non_performing_loan_balance DESC
+    </select>
+
+    <resultMap id="NonPerformingLoanRegionVo" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.NonPerformingLoanRegionVo">
+        <result property="regionName" column="region_name"/>
+        <result property="nonPerformingLoanBalance" column="non_performing_loan_balance"/>
+    </resultMap>
+
+    <select id="selectNonPerformingLoanByRegion" resultMap="NonPerformingLoanRegionVo">
+        SELECT
+            region_name,
+            SUM(non_performing_loan_balance) AS non_performing_loan_balance
+        FROM non_performing_loan_detail
+        WHERE data_date = #{qo.dataDate}
+        GROUP BY region_name
+        ORDER BY non_performing_loan_balance DESC
+    </select>
+
+    <resultMap id="NonPerformingLoanGuaranteeType" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.NonPerformingLoanGuaranteeVo">
+        <result property="guaranteeType" column="guarantee_type"/>
+        <result property="nonPerformingLoanBalance" column="non_performing_loan_balance"/>
+    </resultMap>
+
+    <select id="selectNonPerformingLoanByGuaranteeType" resultMap="NonPerformingLoanGuaranteeType">
+        SELECT
+            guarantee_type,
+            SUM(non_performing_loan_balance) AS non_performing_loan_balance
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+          AND data_date = #{qo.dataDate}
+        GROUP BY guarantee_type
+        ORDER BY non_performing_loan_balance DESC
+    </select>
+
+    <resultMap id="NonPerformingLoanCunstomerVo" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.NonPerformingLoanCunstomerVo">
+        <result property="customerType" column="customer_type"/>
+        <result property="nonPerformingLoanBalance" column="non_performing_loan_balance"/>
+    </resultMap>
+
+    <select id="selectNonPerformingLoanByCustomerType" resultMap="NonPerformingLoanCunstomerVo">
+        SELECT
+            customer_type,
+            SUM(non_performing_loan_balance) AS non_performing_loan_balance
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+          AND data_date = #{qo.dataDate}
+        GROUP BY customer_type
+        ORDER BY non_performing_loan_balance DESC
+    </select>
+
+    <resultMap id="DisposalAmountTypeVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.DisposalAmountTypeVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="disposalType" column="disposal_type"/>
+        <result property="dailyLoanDisposalAmount" column="daily_loan_disposal_amount"/>
+        <result property="yearLoanDisposalAmount" column="year_loan_disposal_amount"/>
+    </resultMap>
+
+    <select id="selectDisposalAmountByType" resultMap="DisposalAmountTypeVoResult">
+        SELECT
+        data_date,
+        disposal_type,
+        SUM(daily_loan_disposal_amount) AS daily_loan_disposal_amount,
+        SUM(year_loan_disposal_amount) AS year_loan_disposal_amount
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+        <if test="qo.startDate != null and qo.startDate != ''">
+            AND data_date &gt;= #{qo.startDate}
+        </if>
+        <if test="qo.endDate != null and qo.endDate != ''">
+            AND data_date &lt;= #{qo.endDate}
+        </if>
+        GROUP BY data_date, disposal_type
+        ORDER BY data_date ASC, disposal_type ASC
+    </select>
+
+    <resultMap id="CharacteristicLoanVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.CharacteristicLoanVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="nonPerformingLoanBalance" column="non_performing_loan_balance"/>
+        <result property="nonPerformingLoanRatio" column="non_performing_loan_ratio"/>
+    </resultMap>
+
+    <select id="selectSpecialLoan" resultMap="CharacteristicLoanVoResult">
+        SELECT
+        data_date,
+        SUM(non_performing_loan_balance) AS non_performing_loan_balance,
+        AVG(non_performing_loan_ratio) AS non_performing_loan_ratio
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+        AND characteristic_loan_type = #{qo.characterType}
+
+            <if test="qo.startDate != null and qo.startDate != ''">
+                AND data_date >= #{qo.startDate}
+            </if>
+            <if test="qo.endDate != null and qo.endDate != ''">
+                AND data_date &lt;= #{qo.endDate}
+            </if>
+
+        GROUP BY data_date
+        ORDER BY data_date asc
+    </select>
+
+    <select id="getOrgLevelByName" resultType="String">
+        SELECT org_level
+        FROM non_performing_loan_detail
+        WHERE org_name = #{orgName}
+            LIMIT 1
+    </select>
+
+
+    <resultMap id="DailyNewNplAmountVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.DailyNewNplAmountVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="dailyNewNplAmount" column="daily_new_npl_amount"/>
+    </resultMap>
+    <select id="selectDailyNewNplAmount" resultMap="DailyNewNplAmountVoResult">
+        SELECT
+        data_date,
+        SUM(daily_new_npl_amount) AS daily_new_npl_amount
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+        <if test="qo.startDate != null and qo.startDate != ''">
+            AND data_date &gt;= #{qo.startDate}
+        </if>
+        <if test="qo.endDate != null and qo.endDate != ''">
+            AND data_date &lt;= #{qo.endDate}
+        </if>
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+
+    <resultMap id="DailyNewNplAmountOrgNameVo" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.DailyNewNplAmountOrgNameVo">
+        <result property="orgName" column="org_name"/>
+        <result property="totalDailyNewNplAmount" column="daily_new_npl_amount"/>
+    </resultMap>
+
+    <select id="selectDailyNewNplAmountOrgName" resultMap="DailyNewNplAmountOrgNameVo">
+        SELECT
+        org_name,
+        SUM(daily_new_npl_amount) AS daily_new_npl_amount
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+          AND data_date = #{qo.dataDate}
+        GROUP BY org_name, data_date
+        ORDER BY data_date ASC, org_name ASC
+    </select>
+    <resultMap id="DisposalAmountVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.DisposalAmountVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="totalDailyLoanDisposalAmount" column="total_daily_loan_disposal_amount"/>
+        <result property="totalYearLoanDisposalAmount" column="total_year_loan_disposal_amount"/>
+    </resultMap>
+
+    <select id="selectDisposalAmount" resultMap="DisposalAmountVoResult">
+        SELECT
+        data_date,
+        SUM(daily_loan_disposal_amount) AS total_daily_loan_disposal_amount,
+        SUM(year_loan_disposal_amount) AS total_year_loan_disposal_amount
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+        <if test="qo.startDate != null and qo.startDate != ''">
+            AND data_date &gt;= #{qo.startDate}
+        </if>
+        <if test="qo.endDate != null and qo.endDate != ''">
+            AND data_date &lt;= #{qo.endDate}
+        </if>
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+
+    <resultMap id="OverdueLoanSummaryVoResult" type="com.zjrcu.iras.bi.globaloverview.domain.vo.CreditRiskMonitoring.OverdueLoanSummaryVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="totalOverdueBalance" column="total_overdue_balance"/>
+        <result property="totalOverdueRatio" column="total_overdue_ratio"/>
+    </resultMap>
+
+    <!-- 根据地区和日期获取总的逾期贷款金额和逾期贷款率 -->
+    <select id="selectOverdueLoanCondition" resultMap="OverdueLoanSummaryVoResult">
+        SELECT
+        data_date,
+        SUM(non_performing_loan_balance) AS total_overdue_balance,
+        AVG(overdue_npl_proportion) AS total_overdue_ratio
+        FROM non_performing_loan_detail
+        WHERE region_name = #{qo.regionName}
+        AND overdue = 1
+        <if test="qo.startDate != null and qo.startDate != ''">
+            AND data_date &gt;= #{qo.startDate}
+        </if>
+        <if test="qo.endDate != null and qo.endDate != ''">
+            AND data_date &lt;= #{qo.endDate}
+        </if>
+        GROUP BY data_date
+        ORDER BY data_date ASC
+    </select>
+
+</mapper>

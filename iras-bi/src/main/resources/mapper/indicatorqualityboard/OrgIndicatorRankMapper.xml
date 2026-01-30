@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.indicatorquality.mapper.OrgIndicatorRankMapper">
+
+    <resultMap type="OrgIndicatorRank" id="OrgIndicatorRankResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="orgId" column="org_id"/>
+            <result property="orgName" column="org_name"/>
+            <result property="dimensionType" column="dimension_type"/>
+            <result property="indicatorCount" column="indicator_count"/>
+            <result property="rankValue" column="rank_value"/>
+            <result property="rankChange" column="rank_change"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectOrgIndicatorRankVo">
+        select id, data_date, org_id, org_name, dimension_type, indicator_count, rank_value, rank_change, created_time, updated_time
+        from org_indicator_rank
+    </sql>
+    <select id="selectOrgIndicatorRank" resultMap="OrgIndicatorRankResult">
+        <include refid="selectOrgIndicatorRankVo"/>
+        where dimension_type = #{rankType}
+        order by indicator_count desc
+    </select>
+    <select id="selectOrgIndicatorRankPage" resultMap="OrgIndicatorRankResult">
+        <include refid="selectOrgIndicatorRankVo"/>
+        <where>
+            <if test="dataDate != null and dataDate != ''">
+                data_date = #{dataDate}
+            </if>
+            and dimension_type = #{rankType}
+        </where>
+    </select>
+</mapper>

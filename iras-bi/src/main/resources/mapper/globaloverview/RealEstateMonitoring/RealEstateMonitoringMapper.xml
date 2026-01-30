@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.globaloverview.mapper.RealEstateMonitoring.RealEstateLoanMapper">
+    <resultMap id="RealEstateLoanResult" type="com.zjrcu.iras.bi.globaloverview.domain.model.RealEstateMonitoring.RealEstateLoan">
+        <result property="dataDate" column="data_date"/>
+        <result property="totalRealEstateLoan" column="total_real_estateLoan"/>
+        <result property="stateOwnedRealEstateLoan" column="state_owned_real_estate_loan"/>
+        <result property="privateRealEstateLoan" column="private_real_estateLoan"/>
+        <result property="regionName" column="region_name"/>
+        <result property="id" column="id"/>
+        <result property="createTime" column="created_time"/>
+        <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+
+    <resultMap id="RealEstateLoanVoMap" type="com.zjrcu.iras.bi.globaloverview.domain.vo.RealEstateMonitoring.RealEstateLoanVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="totalRealEstateLoanBalance" column="total_real_estate_loan"/>
+        <result property="stateOwnedRealEstateLoanBalance" column="state_owned_real_estate_loan"/>
+        <result property="privateRealEstateLoanBalance" column="private_real_estate_loan"/>
+    </resultMap>
+
+    <select id="selectRealEstateLoanBalance" resultMap="RealEstateLoanVoMap">
+        select data_date,
+               total_real_estate_loan,
+               state_owned_real_estate_loan,
+               private_real_estate_loan
+        from real_estate_loan_data
+        <where>
+            region_name = #{globalOverviewRequestQO.regionName}
+            <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate!= ''">
+                AND data_date >= #{globalOverviewRequestQO.startDate}
+            </if>
+            <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate!= ''">
+                AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+            </if>
+        </where>
+        order by data_date  asc
+    </select>
+
+
+</mapper>

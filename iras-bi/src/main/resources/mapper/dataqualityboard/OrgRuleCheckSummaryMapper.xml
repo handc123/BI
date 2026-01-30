@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.fieldquality.mapper.OrgRuleCheckSummaryMapper">
+
+    <resultMap type="OrgRuleCheckSummary" id="OrgRuleCheckSummaryResult">
+            <result property="id" column="id"/>
+            <result property="orgId" column="org_id"/>
+            <result property="orgName" column="org_name"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="totalValidRules" column="total_valid_rules"/>
+            <result property="passItems" column="pass_items"/>
+            <result property="improvedPassItems" column="improved_pass_items"/>
+            <result property="failedItems" column="failed_items"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectOrgRuleCheckSummaryVo">
+        select id, org_id, org_name, data_date, total_valid_rules, pass_items, improved_pass_items, failed_items, created_time, updated_time
+        from org_rule_check_summary
+    </sql>
+
+    <select id="selectRuleCheckSummaryLocalDate" resultMap="OrgRuleCheckSummaryResult">
+        <include refid="selectOrgRuleCheckSummaryVo"/>
+        where
+        data_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) and
+        org_name = #{orgName}
+    </select>
+    <select id="selectOrgRuleCheckTrend" resultMap="OrgRuleCheckSummaryResult">
+        <include refid="selectOrgRuleCheckSummaryVo"/>
+        where org_name = #{orgName}
+--         and data_date >= DATE_SUB(CURDATE(), INTERVAL 31 DAY)
+--         AND data_date &lt;= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        order by data_date
+    </select>
+
+</mapper>

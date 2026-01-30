@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.indicatorquality.mapper.RegionIndicatorStatMapper">
+
+    <resultMap type="RegionIndicatorStat" id="RegionIndicatorStatResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="regionName" column="region_name"/>
+            <result property="indicatorDevationType" column="indicator_devation_type"/>
+            <result property="ratio" column="ratio"/>
+            <result property="rank" column="rank"/>
+            <result property="rankChange" column="rank_change"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectRegionIndicatorStatVo">
+        select id, data_date, region_name, indicator_devation_type, ratio, rank, rank_change, created_time, updated_time
+        from region_indicator_stat
+    </sql>
+    <resultMap id="RegionIndicatorRankVoResult" type="com.zjrcu.iras.bi.indicatorquality.domain.vo.RegionIndicatorRankVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="regionName" column="region_name"/>
+        <result property="deviationLt2Ratio" column="deviation_lt_2_ratio"/>
+        <result property="noDeviationRatio" column="no_deviation_ratio"/>
+        <result property="rank" column="rank_value"/>
+        <result property="rankChange" column="rank_change_value"/>
+    </resultMap>
+    <select id="selectRegionIndicatorDeviationRank" resultMap="RegionIndicatorRankVoResult">
+        SELECT
+            data_date,
+            region_name,
+            MAX(CASE WHEN indicator_devation_type = 'DEVIATION_LT_2' THEN ratio END) AS deviation_lt_2_ratio,
+            MAX(CASE WHEN indicator_devation_type = 'NO_DEVIATION' THEN ratio END) AS no_deviation_ratio,
+            MAX(CASE WHEN indicator_devation_type = 'DEVIATION_LT_2' THEN `rank` END) AS rank_value,
+            MAX(CASE WHEN indicator_devation_type = 'DEVIATION_LT_2' THEN `rank_change` END) AS rank_change_value
+        FROM region_indicator_stat
+        GROUP BY data_date, region_name
+        ORDER BY data_date DESC, deviation_lt_2_ratio DESC;
+    </select>
+
+</mapper>

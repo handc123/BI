@@ -1,0 +1,51 @@
+# 智能BI模块配置
+smartbi:
+  security:
+    # 白名单配置
+    whitelist:
+      # 配置模式：database=从数据库加载，file=从配置文件加载
+      config-mode: database
+      config-file: classpath:config/whitelist.yml
+    
+    # 机构权限配置
+    org-permission:
+      # 严格模式：true=严格检查权限，false=允许默认权限（开发环境）
+      strict-mode: false
+      # 默认机构编码（非严格模式下使用）
+      default-orgs: "100,101,102,103,104,105,106"
+    
+    # 允许的表名（备用配置）
+    allowed-tables: key_indicator_data,non_performing_loan_data,real_estate_loan_person
+
+# 开发环境配置
+---
+spring:
+  profiles: dev
+  
+smartbi:
+  security:
+    org-permission:
+      strict-mode: false
+      default-orgs: "100,101,102,103,104,105,106"
+
+# 测试环境配置  
+---
+spring:
+  profiles: test
+  
+smartbi:
+  security:
+    org-permission:
+      strict-mode: false
+      default-orgs: "100,101,102"
+
+# 生产环境配置
+---
+spring:
+  profiles: prod
+  
+smartbi:
+  security:
+    org-permission:
+      strict-mode: true
+      default-orgs: ""

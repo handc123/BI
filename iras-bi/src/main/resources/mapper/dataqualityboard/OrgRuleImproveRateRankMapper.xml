@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.fieldquality.mapper.OrgRuleImproveRateRankMapper">
+
+    <resultMap type="OrgRuleImproveRateRank" id="OrgRuleImproveRateRankResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="compareDays" column="compare_days"/>
+            <result property="orgId" column="org_id"/>
+            <result property="orgName" column="org_name"/>
+            <result property="ruleId" column="rule_id"/>
+            <result property="ruleCode" column="rule_code"/>
+            <result property="passRateNow" column="pass_rate_now"/>
+            <result property="passRateLastMonth" column="pass_rate_last_month"/>
+            <result property="improveRate" column="improve_rate"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectOrgRuleImproveRateRankVo">
+        select id, data_date, compare_days, org_id, org_name, rule_id, rule_code, pass_rate_now, pass_rate_last_month, improve_rate, created_time, updated_time
+        from org_rule_improve_rate_rank
+    </sql>
+
+    <select id="selectOrgRuleImproveRateRank" resultMap="OrgRuleImproveRateRankResult">
+        <include refid="selectOrgRuleImproveRateRankVo"/>
+        where
+--         data_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) and
+        compare_days = 30 order by improve_rate desc
+    </select>
+
+    <select id="selectOrgRuleImproveRateRankByOrgName" resultMap="OrgRuleImproveRateRankResult">
+        <include refid="selectOrgRuleImproveRateRankVo"/>
+        where
+--         data_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)  and
+        compare_days = #{compareType} and org_name = #{orgName} order by improve_rate desc
+
+    </select>
+
+
+    <resultMap id="RuleTypeCountResult" type="com.zjrcu.iras.bi.fieldquality.domain.vo.RuleTypeCountVo">
+        <result property="ruleTypeBig" column="rule_type_big"/>
+        <result property="ruleCount" column="rule_count"/>
+    </resultMap>
+    <select id="selectRuleTypeCount" resultMap="RuleTypeCountResult">
+        SELECT rule_type_big, COUNT(*) AS rule_count
+        FROM org_rule_improve_rate_rank
+        WHERE
+--             data_date = CURDATE() - INTERVAL 1 DAY AND
+            compare_days = 30 and       org_name = #{orgName}
+        GROUP BY rule_type_big;
+    </select>
+
+    <select id="selectRuleTypePassRate" resultMap="OrgRuleImproveRateRankResult">
+        <include refid="selectOrgRuleImproveRateRankVo"/>
+        where
+--         data_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) and
+        compare_days = 30 and org_name = #{orgName} and rule_type_big = #{ruleTypeBig}
+    </select>
+    <select id="selectOrgRuleImproveRateRankListByDataDate" resultMap="OrgRuleImproveRateRankResult">
+        <include refid="selectOrgRuleImproveRateRankVo"/>
+        <where>
+            <if test="dataDate != null and dataDate!=''">
+                data_date = #{dataDate}
+            </if>
+            and compare_days = 30
+        </where>
+        order by improve_rate desc
+
+    </select>
+    <select id="selectRuleTypePassRateByDataDate" resultMap="OrgRuleImproveRateRankResult">
+        <include refid="selectOrgRuleImproveRateRankVo"/>
+        <where>
+            <if test="dataDate != null and dataDate!=''">
+                data_date = #{dataDate}
+            </if>
+            and compare_days = 30
+            and org_name = #{orgName}
+            and rule_type_big = #{ruleTypeBig}
+        </where>
+    </select>
+</mapper>

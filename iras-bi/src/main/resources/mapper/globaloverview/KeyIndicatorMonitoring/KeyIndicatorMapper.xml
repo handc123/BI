@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.globaloverview.mapper.KeyIndicatorMonitoring.KeyIndicatorMapper">
+    <resultMap id="BaseResultMap" type="com.zjrcu.iras.bi.globaloverview.domain.model.KeyIndicatorMonitoring.KeyIndicator">
+        <id property="id" column="id" />
+        <result property="dataDate" column="data_date"/>
+        <result property="regionName" column="region_name" />
+        <result property="indicatorName" column="indicator_name"/>
+        <result property="indicatorValue" column="indicator_value"/>
+        <result property="previousDayChange" column="previous_day_change"/>
+        <result property="yearStartChange" column="year_start_change"/>
+        <result property="rank" column="rank"/>
+        <result property="createTime" column="created_time"/>
+        <result property="updateTime" column="updated_time"/>
+    </resultMap>
+    <select id="selectKeyIndicator" resultMap="BaseResultMap">
+        select *
+            from key_indicator_data
+        <where>
+            region_name = #{globalOverviewRequestQO.regionName}
+            and data_date = #{globalOverviewRequestQO.dataDate}
+
+        </where>
+    </select>
+</mapper>

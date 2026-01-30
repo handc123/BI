@@ -1,0 +1,1109 @@
+<template>
+  <div class="dashboard-designer-page">
+    <!-- 顶部工具栏 -->
+    <designer-toolbar
+      :dashboard-name="currentDashboard.dashboardName"
+      :can-undo="canUndo"
+      :can-redo="canRedo"
+      :has-unsaved-changes="hasUnsavedChanges"
+      @back="handleBack"
+      @undo="handleUndo"
+      @redo="handleRedo"
+      @name-change="handleNameChange"
+      @open-component-library="showComponentLibrary = true"
+      @preview="handlePreview"
+      @save="handleSave"
+      @publish="handlePublish"
+    />
+
+    <!-- 主编辑区域 -->
+    <div class="designer-main">
+      <!-- 画布编辑区 -->
+      <div class="canvas-container">
+        <designer-canvas
+          ref="canvas"
+          :components="components"
+          :grid-size="gridSize"
+          :canvas-config="canvasConfig"
+          :selected-component-id="selectedComponentId"
+          @component-select="handleComponentSelect"
+          @component-update="handleComponentUpdate"
+          @component-delete="handleComponentDelete"
+          @component-copy="handleComponentCopy"
+        />
+      </div>
+
+      <!-- 右侧配置面板 - 始终显示 -->
+      <div class="config-container">
+        <config-panel
+          :target="configTarget"
+          :target-type="configTargetType"
+          @config-change="handleConfigChange"
+          @refresh-chart="handleRefreshChart"
+        />
+      </div>
+    </div>
+
+    <!-- 组件库弹窗 -->
+    <component-library
+      :visible.sync="showComponentLibrary"
+      @add-component="handleAddComponent"
+    />
+
+    <!-- 查询条件配置弹窗 -->
+    <query-condition-config
+      :visible.sync="showQueryConfig"
+      :conditions="queryConditions"
+      :components="chartComponents"
+      :condition-mappings="conditionMappings"
+      @update="handleQueryConfigUpdate"
+    />
+
+    <!-- 模板保存对话框 -->
+    <template-save-dialog
+      :visible.sync="showTemplateSave"
+      :component="componentToSaveAsTemplate"
+      @save="handleTemplateSave"
+    />
+
+    <!-- 模板管理对话框 -->
+    <template-manage-dialog
+      :visible.sync="showTemplateManage"
+      @use-template="handleUseTemplate"
+    />
+  </div>
+</template>
+
+<script>
+import { mapState, mapGetters, mapActions } from 'vuex'
+import DesignerToolbar from '@/components/DesignerToolbar'
+import DesignerCanvas from '@/components/DesignerCanvas'
+import ConfigPanel from '@/components/ConfigPanel'
+import ComponentLibrary from '@/components/ComponentLibrary'
+import QueryConditionConfig from '@/components/QueryConditionConfig'
+import TemplateSaveDialog from '@/components/TemplateSaveDialog'
+import TemplateManageDialog from '@/components/TemplateManageDialog'
+import {
+  getDashboard,
+  saveDashboard,
+  publishDashboard,
+  getDashboardConfig
+} from '@/api/bi/dashboard'
+
+export default {
+  name: 'DashboardDesigner',
+  components: {
+    DesignerToolbar,
+    DesignerCanvas,
+    ConfigPanel,
+    ComponentLibrary,
+    QueryConditionConfig,
+    TemplateSaveDialog,
+    TemplateManageDialog
+  },
+  data() {
+    return {
+      dashboardId: null,
+      showComponentLibrary: false,
+      showQueryConfig: false,
+      showTemplateSave: false,
+      showTemplateManage: false,
+      componentToSaveAsTemplate: null,
+      hasUnsavedChanges: false,
+      saveInProgress: false
+    }
+  },
+  computed: {
+    ...mapState('dashboard', [
+      'currentDashboard',
+      'selectedComponentId'
+    ]),
+    ...mapState('components', [
+      'components',
+      'queryConditions',
+      'conditionMappings'
+    ]),
+    ...mapGetters('history', [
+      'canUndo',
+      'canRedo'
+    ]),
+    gridSize() {
+      return this.currentDashboard.canvasConfig?.gridSize || 10
+    },
+    canvasConfig() {
+      return this.currentDashboard.canvasConfig || {}
+    },
+    configTarget() {
+      if (this.selectedComponentId) {
+        return this.components.find(c => c.id === this.selectedComponentId)
+      }
+      return this.currentDashboard
+    },
+    configTargetType() {
+      return this.selectedComponentId ? 'component' : 'dashboard'
+    },
+    chartComponents() {
+      return this.components.filter(c => c.type === 'chart')
+    }
+  },
+  watch: {
+    '$route.params.id': {
+      immediate: true,
+      handler(id) {
+        if (id) {
+          this.dashboardId = id
+          this.loadDashboard(id)
+        } else {
+          this.initNewDashboard()
+        }
+      }
+    },
+    // 监听组件库显示状态
+    showComponentLibrary(val) {
+      console.log('[Designer] ===== showComponentLibrary 变化 =====')
+      console.log('[Designer] showComponentLibrary changed:', val)
+      console.log('[Designer] 时间:', new Date().toISOString())
+      
+      if (val) {
+        console.log('[Designer] 组件库即将打开')
+        this.diagnosePageState('组件库打开前')
+      } else {
+        console.log('[Designer] 组件库即将关闭')
+        this.diagnosePageState('组件库关闭前')
+      }
+      
+      console.log('[Designer] ===== showComponentLibrary 变化结束 =====')
+    }
+    // 移除深度监听，改用事件触发方式标记未保存状态
+  },
+  beforeRouteLeave(to, from, next) {
+    if (this.hasUnsavedChanges && !this.saveInProgress) {
+      this.$confirm('您有未保存的更改，确定要离开吗？', '提示', {
+        confirmButtonText: '保存并离开',
+        cancelButtonText: '不保存',
+        distinguishCancelAndClose: true,
+        type: 'warning'
+      }).then(() => {
+        // 保存并离开
+        this.handleSave().then(() => {
+          next()
+        }).catch(() => {
+          next(false)
+        })
+      }).catch(action => {
+        if (action === 'cancel') {
+          // 不保存直接离开
+          next()
+        } else {
+          // 取消离开
+          next(false)
+        }
+      })
+    } else {
+      next()
+    }
+  },
+  methods: {
+    ...mapActions('dashboard', [
+      'setCurrentDashboard',
+      'updateDashboardName',
+      'updateCanvasConfig',
+      'updateGlobalStyle',
+      'selectComponent',
+      'clearSelection'
+    ]),
+    ...mapActions('components', [
+      'addComponent',
+      'updateComponent',
+      'deleteComponent',
+      'copyComponent',
+      'setComponents',
+      'setQueryConditions',
+      'setConditionMappings'
+    ]),
+    ...mapActions('history', [
+      'recordState',
+      'undo',
+      'redo',
+      'clearHistory'
+    ]),
+
+    // 加载仪表板
+    async loadDashboard(id) {
+      // 使用 Loading 服务
+      const loadingInstance = this.$loading({
+        target: '.dashboard-designer-page',
+        text: '加载中...',
+        background: 'rgba(0, 0, 0, 0.8)'
+      })
+
+      // 设置安全超时，确保 loading 不会永久存在
+      const safetyTimeout = setTimeout(() => {
+        loadingInstance.close()
+        // 强制清理所有遮罩
+        document.querySelectorAll('.el-loading-mask, .v-modal').forEach(mask => mask.remove())
+      }, 10000)
+
+      try {
+        const response = await getDashboardConfig(id)
+        const config = response.data
+
+        // 设置仪表板基本信息
+        this.setCurrentDashboard({
+          id: config.dashboard.id,
+          dashboardName: config.dashboard.dashboardName || config.dashboard.name,
+          theme: config.dashboard.theme || 'light',
+          canvasConfig: this.parseJSON(config.dashboard.canvasConfig, {
+            width: 1520,
+            height: 1080,
+            gridSize: 10,
+            margin: { top: 20, right: 20, bottom: 20, left: 20 },
+            background: { type: 'color', value: '#ffffff', opacity: 1 }
+          }),
+          globalStyle: this.parseJSON(config.dashboard.globalStyle, {
+            colorScheme: ['#5470c6', '#91cc75', '#fac858'],
+            titleStyle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+            fontFamily: 'Microsoft YaHei'
+          }),
+          status: config.dashboard.status,
+          publishedVersion: config.dashboard.publishedVersion
+        })
+
+        // 设置组件列表
+        const components = (config.components || []).map(comp => ({
+          id: comp.id,
+          type: comp.componentType,
+          name: comp.componentName,
+          position: { x: comp.positionX, y: comp.positionY },
+          size: { width: comp.width, height: comp.height },
+          zIndex: comp.zindex || comp.zIndex || 0,
+          dataConfig: this.parseJSON(comp.dataConfig, {}),
+          styleConfig: this.parseJSON(comp.styleConfig, {}),
+          advancedConfig: this.parseJSON(comp.advancedConfig, {})
+        }))
+
+        this.setComponents(components)
+        this.setQueryConditions(config.queryConditions || [])
+        this.setConditionMappings(config.conditionMappings || [])
+        this.clearHistory()
+        this.hasUnsavedChanges = false
+
+        this.$message.success('仪表板加载成功')
+      } catch (error) {
+        console.error('加载仪表板失败:', error)
+        this.$message.error('加载仪表板失败: ' + (error.message || '未知错误'))
+      } finally {
+        clearTimeout(safetyTimeout)
+        loadingInstance.close()
+
+        // 清理遮罩层
+        this.$nextTick(() => {
+          document.querySelectorAll('.el-loading-mask, .v-modal').forEach(mask => mask.remove())
+
+          const rootEl = document.querySelector('.dashboard-designer-page')
+          if (rootEl) {
+            rootEl.style.opacity = '1'
+            rootEl.style.pointerEvents = 'auto'
+            rootEl.style.visibility = 'visible'
+          }
+
+          // 延迟再次清理
+          setTimeout(() => {
+            document.querySelectorAll('.el-loading-mask, .v-modal').forEach(mask => mask.remove())
+          }, 100)
+        })
+      }
+    },
+
+    // 初始化新仪表板
+    initNewDashboard() {
+      this.setCurrentDashboard({
+        id: null,
+        dashboardName: '新建仪表板',
+        theme: 'light',
+        canvasConfig: {
+          width: 1520, // 画布实际可用宽度（1920 - 400配置面板）
+          height: 1080,
+          gridSize: 10,
+          margin: { top: 20, right: 20, bottom: 20, left: 20 },
+          background: { type: 'color', value: '#ffffff', opacity: 1 }
+        },
+        globalStyle: {
+          colorScheme: ['#5470c6', '#91cc75', '#fac858'],
+          titleStyle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+          fontFamily: 'Microsoft YaHei'
+        },
+        status: '0',
+        publishedVersion: 0
+      })
+      this.setComponents([])
+      this.setQueryConditions([])
+      this.setConditionMappings([])
+      this.clearHistory()
+      this.hasUnsavedChanges = false
+    },
+
+    // 返回列表
+    handleBack() {
+      this.$router.push('/bi/dashboard').catch(error => {
+        console.error('路由跳转失败:', error)
+      })
+    },
+
+    // 撤销
+    handleUndo() {
+      this.undo()
+    },
+
+    // 重做
+    handleRedo() {
+      this.redo()
+    },
+
+    // 名称变更
+    handleNameChange(newName) {
+      this.updateDashboardName(newName)
+      this.recordState()
+      this.hasUnsavedChanges = true
+    },
+
+    // 组件选择
+    handleComponentSelect(componentId) {
+      this.selectComponent(componentId)
+    },
+
+    // 组件更新
+    handleComponentUpdate(component) {
+      this.updateComponent(component)
+      this.recordState()
+      this.hasUnsavedChanges = true
+    },
+
+    // 组件删除
+    handleComponentDelete(componentId) {
+      this.$confirm('确定要删除该组件吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.deleteComponent(componentId)
+        this.recordState()
+        this.$message.success('组件已删除')
+      }).catch(() => {})
+    },
+
+    // 组件复制
+    handleComponentCopy(componentId) {
+      this.copyComponent(componentId)
+      this.recordState()
+      this.$message.success('组件已复制')
+    },
+
+    // 添加组件
+    handleAddComponent(componentData) {
+      // 统一组件尺寸：宽度760px（一行两个），高度400px
+      const standardSize = { width: 760, height: 400 }
+      
+      const newComponent = {
+        id: 'comp_' + Date.now(),
+        type: componentData.type,
+        name: componentData.name || this.getComponentTypeName(componentData.type),
+        // 使用智能布局算法计算位置
+        position: componentData.position || this.findAvailablePosition(standardSize),
+        size: standardSize, // 使用统一尺寸
+        zIndex: this.components.length,
+        // 初始化配置对象
+        dataConfig: componentData.dataConfig || {},
+        styleConfig: componentData.styleConfig || (componentData.chartType ? { chartType: componentData.chartType } : {}),
+        advancedConfig: componentData.advancedConfig || {}
+      }
+      this.addComponent(newComponent)
+      // 自动选中新添加的组件，这样配置面板会显示新组件的配置
+      this.selectComponent(newComponent.id)
+      this.recordState()
+      
+      // 添加组件后立即清理可能产生的遮罩层
+      this.$nextTick(() => {
+        this.cleanupModals()
+        // 确保页面可交互
+        document.body.style.pointerEvents = 'auto'
+        const rootEl = document.querySelector('.dashboard-designer-page')
+        if (rootEl) {
+          rootEl.style.pointerEvents = 'auto'
+        }
+        
+        // 延迟再次清理，确保 message 组件创建的遮罩也被清理
+        setTimeout(() => {
+          this.cleanupModals()
+        }, 100)
+      })
+      
+      // 不显示重复的消息提示（ComponentLibrary 已经显示了）
+      // this.$message.success('组件已添加')
+    },
+
+    // 智能布局：找到可用的位置（两列布局）
+    findAvailablePosition(size) {
+      const componentWidth = 760 // 固定宽度，一行两个
+      const componentHeight = 400 // 固定高度
+      const canvasConfig = this.currentDashboard.canvasConfig || { width: 1920, height: 1080 }
+      const canvasWidth = 1520 // 画布实际可用宽度（1920 - 400配置面板）
+      const gap = 0 // 组件之间无间隔
+
+      // 如果没有组件，从左上角开始
+      if (this.components.length === 0) {
+        return { x: 0, y: 0 }
+      }
+
+      // 两列布局：第一列 x=0，第二列 x=760
+      const columns = [0, 760]
+      
+      // 按行计算，每行两个组件
+      const rowHeight = componentHeight
+      const maxRows = Math.floor(canvasConfig.height / rowHeight)
+      
+      // 遍历每一行的每一列
+      for (let row = 0; row < maxRows; row++) {
+        const y = row * rowHeight
+        
+        for (let col = 0; col < columns.length; col++) {
+          const x = columns[col]
+          const testArea = {
+            x: x,
+            y: y,
+            width: componentWidth,
+            height: componentHeight
+          }
+
+          // 检查是否与现有组件重叠
+          const occupiedAreas = this.components.map(c => ({
+            x: c.position.x,
+            y: c.position.y,
+            width: c.size.width,
+            height: c.size.height
+          }))
+
+          const hasOverlap = occupiedAreas.some(area => 
+            this.isOverlapping(testArea, area)
+          )
+
+          if (!hasOverlap) {
+            return { x, y }
+          }
+        }
+      }
+
+      // 如果画布已满，放在最后并提示
+      this.$message.warning('画布空间不足，组件可能重叠')
+      const lastRow = Math.floor(this.components.length / 2)
+      const lastCol = this.components.length % 2
+      return { 
+        x: columns[lastCol], 
+        y: lastRow * rowHeight
+      }
+    },
+
+    // 检查两个区域是否重叠
+    isOverlapping(area1, area2) {
+      return !(
+        area1.x + area1.width <= area2.x ||
+        area2.x + area2.width <= area1.x ||
+        area1.y + area1.height <= area2.y ||
+        area2.y + area2.height <= area1.y
+      )
+    },
+
+    // 配置变更
+    handleConfigChange(configChange) {
+      if (this.configTargetType === 'component') {
+        // configChange 格式: { type: 'data'|'style'|'advanced', config: {...} }
+        const updates = {}
+        
+        // 根据配置类型更新对应的字段
+        if (configChange.type === 'data') {
+          updates.dataConfig = configChange.config
+        } else if (configChange.type === 'style') {
+          updates.styleConfig = configChange.config
+        } else if (configChange.type === 'advanced') {
+          updates.advancedConfig = configChange.config
+        }
+        
+        // 调用 Vuex action，传递正确的格式: { id, updates }
+        this.updateComponent({
+          id: this.selectedComponentId,
+          updates: updates
+        })
+      } else {
+        // 更新仪表板配置
+        if (configChange.type === 'dashboard') {
+          const config = configChange.config
+          if (config.canvasConfig) {
+            this.updateCanvasConfig(config.canvasConfig)
+          }
+          if (config.globalStyle) {
+            this.updateGlobalStyle(config.globalStyle)
+          }
+        } else if (configChange.type === 'style') {
+          // 仪表板样式配置
+          this.updateGlobalStyle(configChange.config)
+        }
+      }
+      this.recordState()
+      this.hasUnsavedChanges = true
+    },
+
+    // 查询条件配置更新
+    handleQueryConfigUpdate({ conditions, mappings }) {
+      this.setQueryConditions(conditions)
+      this.setConditionMappings(mappings)
+      this.recordState()
+    },
+
+    // 刷新图表
+    handleRefreshChart() {
+      // 找到当前选中的组件
+      if (!this.selectedComponentId) {
+        return
+      }
+
+      const component = this.components.find(c => c.id === this.selectedComponentId)
+      
+      if (!component || component.type !== 'chart') {
+        return
+      }
+
+      // 通过更新组件的 _refreshTrigger 属性来触发 ChartWidget 的 watch
+      this.updateComponent({
+        id: this.selectedComponentId,
+        updates: {
+          _refreshTrigger: Date.now()
+        }
+      })
+    },
+
+    // 预览
+    handlePreview() {
+      // 打开新窗口预览
+      const routeData = this.$router.resolve({
+        path: '/bi/dashboard/preview/' + (this.dashboardId || 'temp'),
+        query: { preview: true }
+      })
+      window.open(routeData.href, '_blank')
+    },
+
+    // 保存
+    async handleSave() {
+      if (this.saveInProgress) {
+        return Promise.reject('保存中...')
+      }
+
+      this.saveInProgress = true
+      try {
+        const dashboardData = {
+          id: this.currentDashboard.id,
+          dashboardName: this.currentDashboard.dashboardName,
+          theme: this.currentDashboard.theme,
+          canvasConfig: JSON.stringify(this.currentDashboard.canvasConfig),
+          globalStyle: JSON.stringify(this.currentDashboard.globalStyle),
+          status: this.currentDashboard.status || '0'
+        }
+
+        const components = this.components.map(comp => {
+          // 如果 ID 是字符串格式（临时 ID），则设置为 null 让后端生成
+          const componentId = typeof comp.id === 'string' && comp.id.startsWith('comp_') 
+            ? null 
+            : comp.id
+          
+          return {
+            id: componentId,
+            dashboardId: this.currentDashboard.id,
+            componentType: comp.type,
+            componentName: comp.name,
+            positionX: comp.position.x,
+            positionY: comp.position.y,
+            width: comp.size.width,
+            height: comp.size.height,
+            zIndex: comp.zIndex,
+            dataConfig: JSON.stringify(comp.dataConfig || {}),
+            styleConfig: JSON.stringify(comp.styleConfig || {}),
+            advancedConfig: JSON.stringify(comp.advancedConfig || {})
+          }
+        })
+
+        const config = {
+          dashboard: dashboardData,
+          components: components,
+          queryConditions: this.queryConditions,
+          conditionMappings: this.conditionMappings
+        }
+
+        const response = await saveDashboard(config)
+        
+        if (response.code === 200) {
+          this.hasUnsavedChanges = false
+          this.$message.success('保存成功')
+          
+          // 如果是新建,更新ID
+          if (!this.dashboardId && response.data && response.data.id) {
+            this.dashboardId = response.data.id
+            this.setCurrentDashboard({
+              ...this.currentDashboard,
+              id: response.data.id
+            })
+          }
+          
+          return Promise.resolve()
+        } else {
+          throw new Error(response.msg || '保存失败')
+        }
+      } catch (error) {
+        console.error('保存失败:', error)
+        this.$message.error('保存失败: ' + (error.message || '未知错误'))
+        return Promise.reject(error)
+      } finally {
+        this.saveInProgress = false
+      }
+    },
+
+    // 发布
+    async handlePublish() {
+      if (!this.dashboardId) {
+        this.$message.warning('请先保存仪表板')
+        return
+      }
+
+      if (this.hasUnsavedChanges) {
+        this.$message.warning('请先保存未保存的更改')
+        return
+      }
+
+      this.$confirm('确定要发布该仪表板吗？发布后将对授权用户可见。', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        try {
+          await publishDashboard(this.dashboardId)
+          this.$message.success('发布成功')
+          
+          // 更新发布状态
+          this.setCurrentDashboard({
+            ...this.currentDashboard,
+            status: '1',
+            publishedVersion: (this.currentDashboard.publishedVersion || 0) + 1
+          })
+        } catch (error) {
+          console.error('发布失败:', error)
+          this.$message.error('发布失败: ' + (error.message || '未知错误'))
+        }
+      }).catch(() => {})
+    },
+
+    // 模板保存
+    handleTemplateSave(templateData) {
+      // 实现模板保存逻辑
+      console.log('保存模板:', templateData)
+      this.$message.success('模板保存成功')
+    },
+
+    // 使用模板
+    handleUseTemplate(template) {
+      this.handleAddComponent(template.config)
+    },
+
+    // 工具方法: 解析JSON
+    parseJSON(jsonStr, defaultValue = {}) {
+      if (!jsonStr) return defaultValue
+      try {
+        return typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr
+      } catch (e) {
+        console.error('JSON解析失败:', e)
+        return defaultValue
+      }
+    },
+
+    // 获取组件类型名称
+    getComponentTypeName(type) {
+      const typeNames = {
+        chart: '图表组件',
+        query: '查询组件',
+        text: '富文本组件',
+        media: '媒体组件',
+        tabs: '标签页组件'
+      }
+      return typeNames[type] || '未知组件'
+    },
+
+    // 清理页面：移除可能阻挡页面的元素
+    cleanupPage() {
+      console.log('[Designer] cleanupPage called')
+      // 移除 WPS AI 等插件元素
+      const wpsElements = document.querySelectorAll('wps-ai-table-capture, [class*="wps_ai"], [class*="wps-ai"]')
+      console.log('[Designer] Found WPS elements:', wpsElements.length)
+      wpsElements.forEach(el => {
+        el.style.display = 'none'
+        el.style.pointerEvents = 'none'
+      })
+
+      // 清理多余的遮罩层
+      this.cleanupModals()
+
+      // 确保根元素正常显示
+      const rootEl = document.querySelector('.dashboard-designer-page')
+      if (rootEl) {
+        rootEl.style.opacity = '1'
+        rootEl.style.pointerEvents = 'auto'
+        rootEl.style.visibility = 'visible'
+        console.log('[Designer] Root element styles set')
+      }
+    },
+
+    // 清理多余的遮罩层
+    cleanupModals() {
+      const modals = document.querySelectorAll('.v-modal')
+      const visibleDialogs = document.querySelectorAll('.el-dialog__wrapper')
+      
+      console.log('[Designer] cleanupModals - Found modals:', modals.length, 'Visible dialogs:', visibleDialogs.length)
+      
+      // 打印每个对话框的详细信息
+      visibleDialogs.forEach((dialog, index) => {
+        const display = window.getComputedStyle(dialog).display
+        const visibility = window.getComputedStyle(dialog).visibility
+        const opacity = window.getComputedStyle(dialog).opacity
+        const pointerEvents = window.getComputedStyle(dialog).pointerEvents
+        console.log(`[Designer] Dialog ${index}:`, {
+          display,
+          visibility,
+          opacity,
+          pointerEvents,
+          hasParent: !!dialog.parentNode
+        })
+      })
+      
+      let visibleCount = 0
+      visibleDialogs.forEach(dialog => {
+        const display = window.getComputedStyle(dialog).display
+        if (display !== 'none') {
+          visibleCount++
+        }
+      })
+      
+      console.log('[Designer] Visible dialog count:', visibleCount)
+      
+      // 移除多余的遮罩层
+      if (modals.length > visibleCount) {
+        console.log('[Designer] Removing excess modals:', modals.length - visibleCount)
+        for (let i = visibleCount; i < modals.length; i++) {
+          modals[i].remove()
+        }
+      }
+      
+      // 如果没有可见对话框，移除所有遮罩层
+      if (visibleCount === 0) {
+        console.log('[Designer] No visible dialogs, removing all modals')
+        modals.forEach(modal => modal.remove())
+        
+        // 同时清理隐藏的对话框包装器
+        console.log('[Designer] Cleaning up hidden dialog wrappers')
+        visibleDialogs.forEach((dialog, index) => {
+          const display = window.getComputedStyle(dialog).display
+          if (display === 'none' && dialog.parentNode) {
+            console.log(`[Designer] Removing hidden dialog wrapper ${index}`)
+            dialog.remove()
+          }
+        })
+      }
+    }
+  },
+
+  created() {
+    console.log('[Designer] Component created')
+    console.log('[Designer] Route params:', this.$route.params)
+  },
+  
+  mounted() {
+    console.log('[Designer] ========== 页面加载开始 ==========')
+    console.log('[Designer] Component mounted at:', new Date().toISOString())
+    
+    // 添加点击测试函数
+    window.testClick = () => {
+      console.log('[Designer] ===== 点击测试 =====')
+      console.log('[Designer] Body pointer-events:', window.getComputedStyle(document.body).pointerEvents)
+      console.log('[Designer] Body overflow:', window.getComputedStyle(document.body).overflow)
+      
+      const rootEl = document.querySelector('.dashboard-designer-page')
+      if (rootEl) {
+        console.log('[Designer] Root pointer-events:', window.getComputedStyle(rootEl).pointerEvents)
+        console.log('[Designer] Root opacity:', window.getComputedStyle(rootEl).opacity)
+      }
+      
+      const modals = document.querySelectorAll('.v-modal')
+      console.log('[Designer] Modals count:', modals.length)
+      
+      const dialogs = document.querySelectorAll('.el-dialog__wrapper')
+      console.log('[Designer] Dialogs count:', dialogs.length)
+      
+      console.log('[Designer] 如果看到这条消息，说明控制台可以工作')
+      console.log('[Designer] ===== 点击测试结束 =====')
+    }
+    
+    console.log('[Designer] 提示：在控制台输入 testClick() 可以测试页面状态')
+    
+    // 第一次诊断：页面刚加载
+    this.diagnosePageState('页面刚加载')
+    
+    // 确保页面正常显示，移除可能的 WPS AI 元素
+    this.cleanupPage()
+
+    this.$nextTick(() => {
+      // 第二次诊断：$nextTick 后
+      this.diagnosePageState('$nextTick 后')
+      this.cleanupPage()
+    })
+
+    // 延迟诊断：500ms 后
+    setTimeout(() => {
+      this.diagnosePageState('500ms 后')
+    }, 500)
+
+    // 延迟诊断：1000ms 后
+    setTimeout(() => {
+      this.diagnosePageState('1000ms 后')
+    }, 1000)
+
+    // 添加全局监听器，定期清理遮罩层
+    this.modalCleanupInterval = setInterval(() => {
+      const modals = document.querySelectorAll('.v-modal')
+      if (modals.length > 0) {
+        console.warn('[Designer] 检测到遮罩层，正在清理...', modals.length)
+        modals.forEach(modal => {
+          console.log('[Designer] Removing modal:', modal)
+          modal.remove()
+        })
+        
+        // 确保页面可交互
+        document.body.style.pointerEvents = 'auto'
+        const rootEl = document.querySelector('.dashboard-designer-page')
+        if (rootEl) {
+          rootEl.style.pointerEvents = 'auto'
+        }
+        console.log('[Designer] Page interactivity restored')
+      }
+    }, 200) // 每200ms检查一次
+    
+    console.log('[Designer] Modal cleanup interval started')
+    console.log('[Designer] ========== 页面加载结束 ==========')
+    
+    // 添加全局点击监听器
+    this.globalClickHandler = (e) => {
+      console.log('[Designer] ===== 全局点击事件 =====')
+      console.log('[Designer] 点击目标:', e.target.tagName, e.target.className)
+      console.log('[Designer] 点击坐标:', e.clientX, e.clientY)
+      console.log('[Designer] 事件阶段:', e.eventPhase)
+      
+      // 检查点击是否被阻止
+      const elementAtPoint = document.elementFromPoint(e.clientX, e.clientY)
+      console.log('[Designer] 点击位置的元素:', elementAtPoint?.tagName, elementAtPoint?.className)
+      
+      // 诊断当前状态
+      this.diagnosePageState('点击时')
+    }
+    
+    document.addEventListener('click', this.globalClickHandler, true)
+    console.log('[Designer] 全局点击监听器已添加')
+    
+    // 添加组件库按钮点击监听
+    this.$nextTick(() => {
+      const componentLibraryBtn = document.querySelector('[class*="component-library"]')
+      if (componentLibraryBtn) {
+        console.log('[Designer] 找到组件库按钮')
+      } else {
+        console.log('[Designer] 未找到组件库按钮')
+      }
+    })
+  },
+  
+  methods: {
+    // 新增：诊断页面状态的方法
+    diagnosePageState(stage) {
+      console.log(`[Designer] ========== 诊断: ${stage} ==========`)
+      
+      // 检查 body 的样式
+      const bodyStyles = window.getComputedStyle(document.body)
+      console.log('[Designer] Body styles:', {
+        pointerEvents: bodyStyles.pointerEvents,
+        overflow: bodyStyles.overflow,
+        position: bodyStyles.position,
+        paddingRight: bodyStyles.paddingRight
+      })
+      
+      // 检查根元素
+      const rootEl = document.querySelector('.dashboard-designer-page')
+      if (rootEl) {
+        const styles = window.getComputedStyle(rootEl)
+        console.log('[Designer] Root element styles:', {
+          pointerEvents: styles.pointerEvents,
+          opacity: styles.opacity,
+          visibility: styles.visibility,
+          position: styles.position,
+          zIndex: styles.zIndex
+        })
+      } else {
+        console.error('[Designer] Root element not found!')
+      }
+      
+      // 检查遮罩层
+      const modals = document.querySelectorAll('.v-modal')
+      console.log('[Designer] v-modal count:', modals.length)
+      modals.forEach((modal, index) => {
+        const styles = window.getComputedStyle(modal)
+        console.log(`[Designer]   Modal ${index}:`, {
+          display: styles.display,
+          visibility: styles.visibility,
+          pointerEvents: styles.pointerEvents,
+          zIndex: styles.zIndex,
+          opacity: styles.opacity
+        })
+      })
+      
+      // 检查对话框包装器
+      const dialogs = document.querySelectorAll('.el-dialog__wrapper')
+      console.log('[Designer] el-dialog__wrapper count:', dialogs.length)
+      dialogs.forEach((dialog, index) => {
+        const styles = window.getComputedStyle(dialog)
+        const isVisible = styles.display !== 'none'
+        console.log(`[Designer]   Dialog ${index} (${isVisible ? '可见' : '隐藏'}):`, {
+          display: styles.display,
+          visibility: styles.visibility,
+          pointerEvents: styles.pointerEvents,
+          zIndex: styles.zIndex,
+          position: styles.position
+        })
+      })
+      
+      // 检查 loading 遮罩
+      const loadingMasks = document.querySelectorAll('.el-loading-mask')
+      console.log('[Designer] el-loading-mask count:', loadingMasks.length)
+      
+      // 检查 WPS 元素
+      const wpsElements = document.querySelectorAll('wps-ai-table-capture, [class*="wps_ai"], [class*="wps-ai"]')
+      console.log('[Designer] WPS elements count:', wpsElements.length)
+      
+      // 检查所有 position: fixed 的元素
+      const allElements = document.querySelectorAll('*')
+      const fixedElements = Array.from(allElements).filter(el => {
+        const styles = window.getComputedStyle(el)
+        return styles.position === 'fixed' && parseInt(styles.zIndex) > 1000
+      })
+      console.log('[Designer] High z-index fixed elements count:', fixedElements.length)
+      fixedElements.forEach((el, index) => {
+        const styles = window.getComputedStyle(el)
+        console.log(`[Designer]   Fixed element ${index}:`, {
+          tagName: el.tagName,
+          className: el.className,
+          zIndex: styles.zIndex,
+          pointerEvents: styles.pointerEvents,
+          display: styles.display
+        })
+      })
+      
+      console.log(`[Designer] ========== 诊断结束: ${stage} ==========`)
+    },
+
+    // 清理页面：移除可能阻挡页面的元素
+    cleanupPage() {
+    
+    // 清理全局点击监听器
+    if (this.globalClickHandler) {
+      document.removeEventListener('click', this.globalClickHandler, true)
+      console.log('[Designer] 全局点击监听器已移除')
+    }
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.dashboard-designer-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background-color: #f0f2f5;
+  overflow: hidden;
+  position: relative;
+  opacity: 1 !important; /* 强制设置 opacity 为 1，防止被 loading 遮罩影响 */
+  pointer-events: auto !important; /* 确保可以点击 */
+}
+
+.designer-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+}
+
+.config-container {
+  width: 400px;
+  min-width: 400px;
+  max-width: 400px;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+}
+</style>
+
+<style lang="scss">
+/* 全局样式：简化对话框样式 */
+.el-dialog__wrapper {
+  z-index: 2005 !important;
+  pointer-events: auto !important;
+}
+
+.el-dialog__wrapper:nth-of-type(2) {
+  z-index: 2015 !important;
+}
+
+.el-dialog__wrapper:nth-of-type(3) {
+  z-index: 2025 !important;
+}
+
+/* 确保对话框本身和内容可点击 */
+.el-dialog {
+  pointer-events: auto !important;
+}
+
+.el-dialog__header,
+.el-dialog__body,
+.el-dialog__footer {
+  pointer-events: auto !important;
+}
+
+/* 确保关闭按钮可点击 */
+.el-dialog__headerbtn {
+  pointer-events: auto !important;
+  z-index: 1;
+}
+
+.el-dialog__close {
+  pointer-events: auto !important;
+}
+
+/* 确保对话框内的所有交互元素可点击 */
+.el-dialog .el-button,
+.el-dialog .el-input,
+.el-dialog .el-tabs,
+.el-dialog .el-table,
+.el-dialog .component-card {
+  pointer-events: auto !important;
+}
+</style>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.globaloverview.mapper.FiveMajorArticlesMonitoring.StrategicLoanMapper">
+    <resultMap id="StrategicLoanResult" type="com.zjrcu.iras.bi.globaloverview.domain.model.FiveMajorArticlesMonitoring.StrategicLoan">
+        <result column="id" property="id" />
+        <result column="org_name" property="orgName" />
+        <result column="region_name" property="regionName" />
+        <result column="data_date" property="dataDate" />
+        <result column="category" property="category" />
+        <result column="loan_balance" property="loanBalance" />
+        <result column="loan_amount" property="loanAmount" />
+        <result column="loan_interest_rate" property="loanInterestRate" />
+        <result column="created_time" property="createTime"/>
+        <result column="updated_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectStrategicLoan" resultMap="StrategicLoanResult">
+        select * from strategic_loan_data
+        where
+        region_name = #{globalOverviewRequestQO.regionName}
+        and category = #{globalOverviewRequestQO.financeType}
+        <if test="globalOverviewRequestQO.startDate != null and globalOverviewRequestQO.startDate!= ''">
+            AND data_date >= #{globalOverviewRequestQO.startDate}
+        </if>
+        <if test="globalOverviewRequestQO.endDate != null and globalOverviewRequestQO.endDate!= ''">
+            AND data_date &lt;= #{globalOverviewRequestQO.endDate}
+        </if>
+        order by data_date  asc
+    </select>
+</mapper>

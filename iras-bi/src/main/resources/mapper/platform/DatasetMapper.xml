@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.platform.mapper.DatasetMapper">
+
+    <resultMap type="Dataset" id="DatasetResult">
+        <id     property="id"             column="id"               />
+        <result property="name"           column="name"             />
+        <result property="datasourceId"   column="datasource_id"    />
+        <result property="type"           column="type"             />
+        <result property="queryConfig"    column="query_config"     />
+        <result property="fieldConfig"    column="field_config"     />
+        <result property="extractConfig"  column="extract_config"   />
+        <result property="lastExtractTime" column="last_extract_time"/>
+        <result property="rowCount"       column="row_count"        />
+        <result property="status"         column="status"           />
+        <result property="createBy"       column="create_by"        />
+        <result property="createTime"    column="create_time"      />
+        <result property="updateBy"       column="update_by"        />
+        <result property="updateTime"    column="update_time"      />
+        <result property="remark"         column="remark"           />
+    </resultMap>
+
+    <sql id="selectDatasetVo">
+        select id, name, datasource_id, type, query_config, field_config, extract_config,
+               last_extract_time, row_count, status, create_by, create_time, update_by, update_time, remark
+        from bi_dataset
+    </sql>
+
+    <select id="selectDatasetList" parameterType="Dataset" resultMap="DatasetResult">
+        <include refid="selectDatasetVo"/>
+        <where>
+            <if test="name != null and name != ''">
+                AND name like concat('%', #{name}, '%')
+            </if>
+            <if test="datasourceId != null">
+                AND datasource_id = #{datasourceId}
+            </if>
+            <if test="type != null and type != ''">
+                AND type = #{type}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectDatasetById" parameterType="Long" resultMap="DatasetResult">
+        <include refid="selectDatasetVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertDataset" parameterType="Dataset" useGeneratedKeys="true" keyProperty="id">
+        insert into bi_dataset
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">name,</if>
+            <if test="datasourceId != null">datasource_id,</if>
+            <if test="type != null and type != ''">type,</if>
+            <if test="queryConfig != null and queryConfig != ''">query_config,</if>
+            <if test="fieldConfig != null">field_config,</if>
+            <if test="extractConfig != null">extract_config,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="datasourceId != null">#{datasourceId},</if>
+            <if test="type != null and type != ''">#{type},</if>
+            <if test="queryConfig != null and queryConfig != ''">#{queryConfig},</if>
+            <if test="fieldConfig != null">#{fieldConfig},</if>
+            <if test="extractConfig != null">#{extractConfig},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="remark != null">#{remark},</if>
+            sysdate()
+        </trim>
+    </insert>
+
+    <update id="updateDataset" parameterType="Dataset">
+        update bi_dataset
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="datasourceId != null">datasource_id = #{datasourceId},</if>
+            <if test="type != null and type != ''">type = #{type},</if>
+            <if test="queryConfig != null and queryConfig != ''">query_config = #{queryConfig},</if>
+            <if test="fieldConfig != null">field_config = #{fieldConfig},</if>
+            <if test="extractConfig != null">extract_config = #{extractConfig},</if>
+            <if test="lastExtractTime != null">last_extract_time = #{lastExtractTime},</if>
+            <if test="rowCount != null">row_count = #{rowCount},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteDatasetById" parameterType="Long">
+        delete from bi_dataset where id = #{id}
+    </delete>
+
+    <delete id="deleteDatasetByIds" parameterType="Long">
+        delete from bi_dataset where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.fieldquality.mapper.RegionDailyRankMapper">
+
+    <resultMap type="RegionDailyRank" id="RegionDailyRankResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="regionName" column="region_name"/>
+            <result property="passRate" column="pass_rate"/>
+            <result property="currentRank" column="current_rank"/>
+            <result property="previousRank" column="previous_rank"/>
+            <result property="rankChange" column="rank_change"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectRegionDailyRankVo">
+        select id, data_date, region_name, pass_rate, current_rank, previous_rank, rank_change, created_time, updated_time
+        from region_daily_rank
+    </sql>
+
+
+    <select id="selectRegionDailyRank" resultMap="RegionDailyRankResult">
+        <include refid="selectRegionDailyRankVo"/>
+--         where
+--         data_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        order by pass_rate desc
+    </select>
+</mapper>

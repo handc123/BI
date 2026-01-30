@@ -1,0 +1,62 @@
+# 智能BI系统白名单配置
+# 用于控制允许查询的表名和字段名，防止SQL注入和数据泄露
+
+# 允许查询的表名列表
+allowedTables:
+  - key_indicator_data
+  - non_performing_loan_data
+  - real_estate_loan_person
+
+# 每个表允许查询的字段列表
+tableFields:
+  # 关键指标数据表
+  key_indicator_data:
+    - org_code
+    - org_name
+    - data_date
+    - indicator_name
+    - indicator_value
+    - indicator_unit
+    - region_name
+    - create_time
+    - update_time
+  
+  # 不良贷款数据表
+  non_performing_loan_data:
+    - org_code
+    - org_name
+    - data_date
+    - non_performing_loan_ratio
+    - total_loan_amount
+    - non_performing_loan_amount
+    - region_name
+    - create_time
+    - update_time
+  
+  # 房地产贷款个人数据表
+  real_estate_loan_person:
+    - org_code
+    - org_name
+    - data_date
+    - loan_type
+    - loan_person
+    - loan_amount
+    - region_name
+    - create_time
+    - update_time
+
+# 允许使用的聚合函数
+allowedAggregations:
+  - SUM
+  - COUNT
+  - AVG
+  - MAX
+  - MIN
+  - DISTINCT
+
+# 配置说明：
+# 1. allowedTables: 定义系统中允许查询的表名
+# 2. tableFields: 定义每个表中允许查询的字段名
+# 3. allowedAggregations: 定义允许使用的SQL聚合函数
+# 4. 所有配置项都支持运行时动态更新
+# 5. 如果配置文件不存在或加载失败，系统会使用代码中的默认配置

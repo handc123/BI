@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.fieldquality.mapper.RulePassRateDistributionMapper">
+
+    <resultMap type="RulePassRateDistribution" id="RulePassRateDistributionResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="orgId" column="org_id"/>
+            <result property="orgName" column="org_name"/>
+            <result property="passRateRange" column="pass_rate_range"/>
+            <result property="ruleCount" column="rule_count"/>
+            <result property="totalRules" column="total_rules"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+
+    <sql id="selectRulePassRateDistributionVo">
+        select id, data_date, org_id, org_name, pass_rate_range, rule_count, total_rules, created_time, updated_time
+        from rule_pass_rate_distribution
+    </sql>
+
+
+    <select id="selectRulePassRateDistributionLocalDateByOrgId" parameterType="String"
+            resultMap="RulePassRateDistributionResult">
+            <include refid="selectRulePassRateDistributionVo"/>
+            where data_date = #{date}
+    </select>
+
+
+</mapper>

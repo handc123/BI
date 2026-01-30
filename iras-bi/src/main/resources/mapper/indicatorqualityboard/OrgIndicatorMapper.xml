@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.indicatorquality.mapper.OrgIndicatorMapper">
+    <resultMap id="OrgIndicatorBarChartVoResult" type="com.zjrcu.iras.bi.indicatorquality.domain.vo.OrgIndicatorBarChartVo">
+        <result property="dataDate" column="data_date"/>
+        <result property="orgName" column="org_name"/>
+        <result property="regionName" column="region_name"/>
+        <result property="noDeviationCount" column="no_deviation_count"/>
+        <result property="deviationLt2Count" column="deviation_lt_2_count"/>
+        <result property="deviationGt2Count" column="deviation_gt_2_count"/>
+    </resultMap>
+    <select id="selectOrgIndicatorClassifyCount" resultMap="OrgIndicatorBarChartVoResult">
+        SELECT
+            data_date,
+            region_name,
+            org_name,
+            SUM(CASE WHEN indicator_devation_type = 'NO_DEVIATION' THEN count ELSE 0 END) AS no_deviation_count,
+            SUM(CASE WHEN indicator_devation_type = 'DEVIATION_LT_2' THEN count ELSE 0 END) AS deviation_lt_2_count,
+            SUM(CASE WHEN indicator_devation_type = 'DEVIATION_GT_2' THEN count ELSE 0 END) AS deviation_gt_2_count
+        FROM org_indicator_distribution
+        WHERE region_name = #{regionName}
+        GROUP BY org_name, data_date
+        ORDER BY org_name
+    </select>
+    <resultMap id="OrgIndicatorDevationCountVoResult" type="com.zjrcu.iras.bi.indicatorquality.domain.vo.OrgIndicatorDevationCountVo">
+        <result property="orgName" column="org_name"/>
+        <result property="totalCount" column="total_count"/>
+        <result property="noDeviationCount" column="no_deviation_count"/>
+        <result property="deviationLt2Count" column="deviation_lt_2_count"/>
+        <result property="deviationGt2Count" column="deviation_gt_2_count"/>
+    </resultMap>
+    <select id="selectOrgIndicatorDeviationCountByOrgName" resultMap="OrgIndicatorDevationCountVoResult">
+        SELECT
+            org_name,
+            SUM(CASE WHEN indicator_devation_type = 'NO_DEVIATION' THEN count ELSE 0 END) AS no_deviation_count,
+            SUM(CASE WHEN indicator_devation_type = 'DEVIATION_LT_2' THEN count ELSE 0 END) AS deviation_lt_2_count,
+            SUM(CASE WHEN indicator_devation_type = 'DEVIATION_GT_2' THEN count ELSE 0 END) AS deviation_gt_2_count,
+            SUM(count) AS total_count
+        FROM org_indicator_distribution
+        WHERE org_name = #{orgName}
+        GROUP BY org_name;
+    </select>
+    <select id="selectNoDeviationTrend" resultMap="TrendItemResult">
+        SELECT DATE_FORMAT(data_date, '%Y-%m') AS data_date, SUM(count) AS value
+        FROM org_indicator_distribution
+        WHERE org_name = #{orgName} AND indicator_devation_type = 'NO_DEVIATION'
+          AND data_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY data_date
+        ORDER BY data_date
+    </select>
+
+    <select id="selectDeviationLt2Trend" resultMap="TrendItemResult">
+        SELECT DATE_FORMAT(data_date, '%Y-%m') AS data_date, SUM(count) AS value
+        FROM org_indicator_distribution
+        WHERE org_name = #{orgName} AND indicator_devation_type = 'DEVIATION_LT_2'
+          AND data_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY data_date
+        ORDER BY data_date
+    </select>
+
+    <select id="selectDeviationGt2Trend" resultMap="TrendItemResult">
+        SELECT DATE_FORMAT(data_date, '%Y-%m') AS data_date, SUM(count) AS value
+        FROM org_indicator_distribution
+        WHERE org_name = #{orgName} AND indicator_devation_type = 'DEVIATION_GT_2'
+          AND data_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY data_date
+        ORDER BY data_date
+    </select>
+
+    <resultMap id="TrendItemResult" type="com.zjrcu.iras.bi.indicatorquality.domain.vo.OrgIndicatorDeviationTrendItem">
+        <result property="dataDate" column="data_date"/>
+        <result property="value" column="value"/>
+    </resultMap>
+</mapper>

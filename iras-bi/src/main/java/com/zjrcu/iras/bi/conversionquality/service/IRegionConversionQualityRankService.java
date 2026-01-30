@@ -1,0 +1,9 @@
+package com.zjrcu.iras.bi.conversionquality.service;
+
+import com.zjrcu.iras.bi.conversionquality.domain.model.RegionConversionQualityRank;
+
+import java.util.List;
+
+public interface IRegionConversionQualityRankService {
+    List<RegionConversionQualityRank> selectRegionConversionQualityRank();
+}

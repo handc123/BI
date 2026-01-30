@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.platform.mapper.ComponentMapper">
+    
+    <resultMap type="com.zjrcu.iras.bi.platform.domain.DashboardComponent" id="ComponentResult">
+        <result property="id"    column="id"    />
+        <result property="dashboardId"    column="dashboard_id"    />
+        <result property="componentType"    column="component_type"    />
+        <result property="componentName"    column="component_name"    />
+        <result property="positionX"    column="position_x"    />
+        <result property="positionY"    column="position_y"    />
+        <result property="width"    column="width"    />
+        <result property="height"    column="height"    />
+        <result property="zIndex"    column="z_index"    />
+        <result property="dataConfig"    column="data_config"    />
+        <result property="styleConfig"    column="style_config"    />
+        <result property="advancedConfig"    column="advanced_config"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectComponentVo">
+        select id, dashboard_id, component_type, component_name, position_x, position_y, 
+               width, height, z_index, data_config, style_config, advanced_config, 
+               create_time, update_time
+        from bi_dashboard_component
+    </sql>
+
+    <select id="selectComponentList" parameterType="com.zjrcu.iras.bi.platform.domain.DashboardComponent" resultMap="ComponentResult">
+        <include refid="selectComponentVo"/>
+        <where>  
+            <if test="dashboardId != null">
+                AND dashboard_id = #{dashboardId}
+            </if>
+            <if test="componentType != null and componentType != ''">
+                AND component_type = #{componentType}
+            </if>
+            <if test="componentName != null and componentName != ''">
+                AND component_name like concat('%', #{componentName}, '%')
+            </if>
+        </where>
+        order by z_index asc, create_time asc
+    </select>
+    
+    <select id="selectComponentById" parameterType="Long" resultMap="ComponentResult">
+        <include refid="selectComponentVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectComponentByDashboardId" parameterType="Long" resultMap="ComponentResult">
+        <include refid="selectComponentVo"/>
+        where dashboard_id = #{dashboardId}
+        order by z_index asc, create_time asc
+    </select>
+        
+    <insert id="insertComponent" parameterType="com.zjrcu.iras.bi.platform.domain.DashboardComponent" useGeneratedKeys="true" keyProperty="id">
+        insert into bi_dashboard_component
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="dashboardId != null">dashboard_id,</if>
+            <if test="componentType != null and componentType != ''">component_type,</if>
+            <if test="componentName != null">component_name,</if>
+            <if test="positionX != null">position_x,</if>
+            <if test="positionY != null">position_y,</if>
+            <if test="width != null">width,</if>
+            <if test="height != null">height,</if>
+            <if test="zIndex != null">z_index,</if>
+            <if test="dataConfig != null">data_config,</if>
+            <if test="styleConfig != null">style_config,</if>
+            <if test="advancedConfig != null">advanced_config,</if>
+            create_time
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="dashboardId != null">#{dashboardId},</if>
+            <if test="componentType != null and componentType != ''">#{componentType},</if>
+            <if test="componentName != null">#{componentName},</if>
+            <if test="positionX != null">#{positionX},</if>
+            <if test="positionY != null">#{positionY},</if>
+            <if test="width != null">#{width},</if>
+            <if test="height != null">#{height},</if>
+            <if test="zIndex != null">#{zIndex},</if>
+            <if test="dataConfig != null">#{dataConfig},</if>
+            <if test="styleConfig != null">#{styleConfig},</if>
+            <if test="advancedConfig != null">#{advancedConfig},</if>
+            sysdate()
+         </trim>
+    </insert>
+
+    <update id="updateComponent" parameterType="com.zjrcu.iras.bi.platform.domain.DashboardComponent">
+        update bi_dashboard_component
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="componentType != null and componentType != ''">component_type = #{componentType},</if>
+            <if test="componentName != null">component_name = #{componentName},</if>
+            <if test="positionX != null">position_x = #{positionX},</if>
+            <if test="positionY != null">position_y = #{positionY},</if>
+            <if test="width != null">width = #{width},</if>
+            <if test="height != null">height = #{height},</if>
+            <if test="zIndex != null">z_index = #{zIndex},</if>
+            <if test="dataConfig != null">data_config = #{dataConfig},</if>
+            <if test="styleConfig != null">style_config = #{styleConfig},</if>
+            <if test="advancedConfig != null">advanced_config = #{advancedConfig},</if>
+            update_time = sysdate()
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteComponentById" parameterType="Long">
+        delete from bi_dashboard_component where id = #{id}
+    </delete>
+
+    <delete id="deleteComponentByIds" parameterType="Long">
+        delete from bi_dashboard_component where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteComponentByDashboardId" parameterType="Long">
+        delete from bi_dashboard_component where dashboard_id = #{dashboardId}
+    </delete>
+
+    <update id="updateComponentPosition" parameterType="com.zjrcu.iras.bi.platform.domain.dto.ComponentPosition">
+        update bi_dashboard_component
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="positionX != null">position_x = #{positionX},</if>
+            <if test="positionY != null">position_y = #{positionY},</if>
+            <if test="width != null">width = #{width},</if>
+            <if test="height != null">height = #{height},</if>
+            <if test="zIndex != null">z_index = #{zIndex},</if>
+            update_time = sysdate()
+        </trim>
+        where id = #{componentId}
+    </update>
+</mapper>

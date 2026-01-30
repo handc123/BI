@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.fieldquality.mapper.RegionOrgCheckFailureSummaryMapper">
+
+    <resultMap type="RegionOrgCheckFailureSummary" id="RegionOrgCheckFailureSummaryResult">
+            <result property="id" column="id"/>
+            <result property="dataDate" column="data_date"/>
+            <result property="regionName" column="region_name"/>
+            <result property="orgId" column="org_id"/>
+            <result property="orgName" column="org_name"/>
+            <result property="unpassedRuleCount" column="unpassed_rule_count"/>
+            <result property="unpassedRecordCount" column="unpassed_record_count"/>
+            <result property="createTime" column="created_time"/>
+            <result property="updateTime" column="updated_time"/>
+    </resultMap>
+    <resultMap id="RegionOrgCheckFailureSummaryVoMap"
+               type="com.zjrcu.iras.bi.fieldquality.domain.vo.RegionOrgCheckFailureSummaryVo">
+        <result column="unpassed_rule_count"
+                property="unpassedRuleCount"
+                jdbcType="INTEGER"/>
+        <result column="unpassed_record_count"
+                property="unpassedRecordCount"
+                jdbcType="INTEGER"/>
+    </resultMap>
+    <resultMap id="RegionOrgCheckFailureDisVoMap"
+               type="com.zjrcu.iras.bi.fieldquality.domain.vo.RegionOrgCheckFailureDisVo">
+        <result column="org_name"
+                property="orgName"
+                jdbcType="VARCHAR"/>
+        <result column="unpassed_rule_count"
+                property="unpassedRuleCount"
+                jdbcType="INTEGER"/>
+        <result column="unpassed_record_count"
+                property="unpassedRecordCount"
+        />
+               </resultMap>
+    <sql id="selectRegionOrgCheckFailureSummaryVo">
+        select id, data_date, region_name, org_id, org_name, unpassed_rule_count, unpassed_record_count, created_time, updated_time
+        from region_org_check_failure_summary
+    </sql>
+    <select id="selectRegionOrgCheckFailureSummaryByRegionName" resultMap="RegionOrgCheckFailureSummaryVoMap">
+        select sum(unpassed_rule_count) as unpassed_rule_count, sum(unpassed_record_count) as unpassed_record_count
+        from region_org_check_failure_summary
+        where region_name = #{regionName}
+--           and data_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+    </select>
+
+    <select id="selectRegionOrgCheckFailureDisByRegionName" resultMap="RegionOrgCheckFailureDisVoMap">
+        select org_name, unpassed_rule_count, unpassed_record_count
+        from region_org_check_failure_summary
+        where region_name = #{regionName}
+--           and data_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+    </select>
+
+</mapper>
