@@ -652,7 +652,10 @@ export default {
         'number': ['INT', 'TINYINT', 'SMALLINT', 'MEDIUMINT', 'BIGINT', 'FLOAT', 'DOUBLE', 'DECIMAL', 'NUMERIC'],
         'time': ['DATE', 'DATETIME', 'TIMESTAMP', 'TIME', 'YEAR'],
         'range': ['DATE', 'DATETIME', 'TIMESTAMP', 'INT', 'BIGINT', 'DECIMAL'], // 添加数值类型支持
-        'dropdown': ['VARCHAR', 'CHAR', 'INT', 'TINYINT', 'SMALLINT', 'BIGINT']
+        'dropdown': ['VARCHAR', 'CHAR', 'INT', 'TINYINT', 'SMALLINT', 'BIGINT'],
+        'organization': ['VARCHAR', 'CHAR', 'INT', 'BIGINT'], // 机构选择器，支持字符型和数值型ID
+        'dept': ['VARCHAR', 'CHAR', 'INT', 'BIGINT'], // 部门选择器
+        'user': ['VARCHAR', 'CHAR', 'INT', 'BIGINT'] // 用户选择器
       }
 
       const compatibleTypes = compatibilityMap[displayType] || []

@@ -21,6 +21,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="delFlag"    column="del_flag"    />
     </resultMap>
 
+    <!-- 列表查询的 ResultMap，包含组件数量 -->
+    <resultMap type="com.zjrcu.iras.bi.platform.domain.Dashboard" id="DashboardListResult" extends="DashboardResult">
+        <result property="componentCount"    column="component_count"    />
+    </resultMap>
+
     <sql id="selectDashboardVo">
         select id, dashboard_name, dashboard_desc, theme, canvas_config, global_style, 
                status, published_version, create_by, create_time, update_by, update_time, 
@@ -28,21 +33,25 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         from bi_dashboard
     </sql>
 
-    <select id="selectDashboardList" parameterType="com.zjrcu.iras.bi.platform.domain.Dashboard" resultMap="DashboardResult">
-        <include refid="selectDashboardVo"/>
+    <select id="selectDashboardList" parameterType="com.zjrcu.iras.bi.platform.domain.Dashboard" resultMap="DashboardListResult">
+        select d.id, d.dashboard_name, d.dashboard_desc, d.theme, d.canvas_config, d.global_style, 
+               d.status, d.published_version, d.create_by, d.create_time, d.update_by, d.update_time, 
+               d.remark, d.del_flag,
+               (select count(1) from bi_dashboard_component c where c.dashboard_id = d.id) as component_count
+        from bi_dashboard d
         <where>
-            del_flag = '0'
+            d.del_flag = '0'
             <if test="dashboardName != null and dashboardName != ''">
-                AND dashboard_name like concat('%', #{dashboardName}, '%')
+                AND d.dashboard_name like concat('%', #{dashboardName}, '%')
             </if>
             <if test="theme != null and theme != ''">
-                AND theme = #{theme}
+                AND d.theme = #{theme}
             </if>
             <if test="status != null and status != ''">
-                AND status = #{status}
+                AND d.status = #{status}
             </if>
         </where>
-        order by create_time desc
+        order by d.create_time desc
     </select>
     
     <select id="selectDashboardById" parameterType="Long" resultMap="DashboardResult">

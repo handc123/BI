@@ -57,6 +57,9 @@ public class QueryCondition implements Serializable {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date updateTime;
 
+    /** 临时ID */
+    private String tempId;
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -159,6 +162,14 @@ public class QueryCondition implements Serializable {
 
     public Date getUpdateTime() {
         return updateTime;
+    }
+
+    public String getTempId() {
+        return tempId;
+    }
+
+    public void setTempId(String tempId) {
+        this.tempId = tempId;
     }
 
     @Override

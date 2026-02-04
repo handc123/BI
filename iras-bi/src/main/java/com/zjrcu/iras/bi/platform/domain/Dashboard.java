@@ -41,6 +41,9 @@ public class Dashboard extends BaseEntity {
     /** 删除标志(0正常 1删除) */
     private String delFlag;
 
+    /** 组件数量（临时字段，仅用于列表展示） */
+    private Integer componentCount;
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -111,6 +114,14 @@ public class Dashboard extends BaseEntity {
 
     public String getDelFlag() {
         return delFlag;
+    }
+
+    public void setComponentCount(Integer componentCount) {
+        this.componentCount = componentCount;
+    }
+
+    public Integer getComponentCount() {
+        return componentCount;
     }
 
     @Override

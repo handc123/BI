@@ -38,6 +38,12 @@ public class ConditionMapping implements Serializable {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date createTime;
 
+    /** 临时组件ID */
+    private String tempComponentId;
+
+    /** 临时条件ID */
+    private String tempConditionId;
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -92,6 +98,22 @@ public class ConditionMapping implements Serializable {
 
     public Date getCreateTime() {
         return createTime;
+    }
+
+    public String getTempComponentId() {
+        return tempComponentId;
+    }
+
+    public void setTempComponentId(String tempComponentId) {
+        this.tempComponentId = tempComponentId;
+    }
+
+    public String getTempConditionId() {
+        return tempConditionId;
+    }
+
+    public void setTempConditionId(String tempConditionId) {
+        this.tempConditionId = tempConditionId;
     }
 
     @Override

@@ -13,6 +13,7 @@
           <data-config
             v-if="activeTab === 'data'"
             :key="target && target.id"
+            :component="target"
             :initial-config="target && target.dataConfig"
             @config-change="handleDataConfigChange"
             @refresh-chart="handleRefreshChart"

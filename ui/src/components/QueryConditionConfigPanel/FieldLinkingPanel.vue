@@ -439,13 +439,13 @@ export default {
 
         // 添加维度字段映射
         ;(fields.dimensions || []).forEach(fieldIdentifier => {
-          // 从缓存中查找完整的字段信息
+          // 精确查找物理字段名匹配的项
           const fieldInfo = allCachedFields.find(
-            f => this.getFieldDbName(f) === fieldIdentifier || (f.fieldName || f.field) === fieldIdentifier
+            f => this.getFieldDbName(f) === fieldIdentifier
           )
 
-          // 使用数据库字段名而不是显示名称
-          const dbFieldName = this.getFieldDbName(fieldInfo) || fieldIdentifier
+          // 使用数据库字段名
+          const dbFieldName = fieldIdentifier // 因为 label 已经绑定为物理名了
 
           componentMappings.push({
             conditionId: this.selectedCondition.id,
@@ -460,13 +460,13 @@ export default {
 
         // 添加指标字段映射
         ;(fields.metrics || []).forEach(fieldIdentifier => {
-          // 从缓存中查找完整的字段信息
+          // 精确查找物理字段名匹配的项
           const fieldInfo = allCachedFields.find(
-            f => this.getFieldDbName(f) === fieldIdentifier || (f.fieldName || f.field) === fieldIdentifier
+            f => this.getFieldDbName(f) === fieldIdentifier
           )
 
-          // 使用数据库字段名而不是显示名称
-          const dbFieldName = this.getFieldDbName(fieldInfo) || fieldIdentifier
+          // 使用数据库字段名
+          const dbFieldName = fieldIdentifier // 因为 label 已经绑定为物理名了
 
           componentMappings.push({
             conditionId: this.selectedCondition.id,
@@ -575,27 +575,22 @@ export default {
 
     /**
      * 获取字段标签值（用于checkbox的label）
-     * 优先使用数据库原始字段名（dbFieldName），其次使用fieldName
+     * 必须返回一个能唯一标识字段的值，通常是数据库字段名
      */
     getFieldLabelValue(field) {
-      // 如果字段有明确的数据库字段名属性，使用它
-      if (field.dbFieldName) {
-        return String(field.dbFieldName)
-      }
-      // 否则使用fieldName（但可能需要根据实际情况调整）
-      return String(field.fieldName || field.field || '')
+      if (!field) return ''
+      // 优先使用数据库原始字段名（dbFieldName），其次使用fieldName，最后使用field属性
+      const value = field.dbFieldName || field.fieldName || field.field || ''
+      return String(value)
     },
 
     /**
      * 获取字段的数据库字段名（用于保存映射）
      */
     getFieldDbName(field) {
+      if (!field) return ''
       // 优先使用数据库原始字段名
-      if (field.dbFieldName) {
-        return field.dbFieldName
-      }
-      // 其次使用fieldName，最后使用field
-      return field.fieldName || field.field || ''
+      return field.dbFieldName || field.fieldName || field.field || ''
     },
 
     getComponentIcon(type) {

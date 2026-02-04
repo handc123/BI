@@ -598,6 +598,11 @@ public class QueryExecutor implements IQueryExecutor {
 
         switch (operator.toLowerCase()) {
             case "eq":
+                // 优化日期匹配: 如果是 yyyy-MM-dd 格式, 自动匹配整天
+                if (value instanceof String && ((String) value).matches("\\d{4}-\\d{2}-\\d{2}")) {
+                    String dateStr = (String) value;
+                    return quotedField + " BETWEEN '" + dateStr + " 00:00:00' AND '" + dateStr + " 23:59:59'";
+                }
                 return quotedField + " = " + formatValue(value);
             case "ne":
                 return quotedField + " != " + formatValue(value);
@@ -624,8 +629,21 @@ public class QueryExecutor implements IQueryExecutor {
             case "between":
                 List<Object> rangeValues = filter.getValues();
                 if (rangeValues != null && rangeValues.size() == 2) {
-                    return quotedField + " BETWEEN " + formatValue(rangeValues.get(0)) +
-                            " AND " + formatValue(rangeValues.get(1));
+                    Object start = rangeValues.get(0);
+                    Object end = rangeValues.get(1);
+                    
+                    // 优化日期范围: 自动补全结束日期的时间
+                    String startVal = formatValue(start);
+                    String endVal = formatValue(end);
+                    
+                    if (start instanceof String && ((String) start).matches("\\d{4}-\\d{2}-\\d{2}")) {
+                        startVal = "'" + (String) start + " 00:00:00'";
+                    }
+                    if (end instanceof String && ((String) end).matches("\\d{4}-\\d{2}-\\d{2}")) {
+                        endVal = "'" + (String) end + " 23:59:59'";
+                    }
+                    
+                    return quotedField + " BETWEEN " + startVal + " AND " + endVal;
                 }
                 return "";
             default:

@@ -730,12 +730,11 @@ export default {
         }
 
         const components = this.components.map(comp => {
-          const componentId = typeof comp.id === 'string' && comp.id.startsWith('comp_')
-            ? null
-            : comp.id
-
+          const isTempId = typeof comp.id === 'string' && comp.id.startsWith('comp_')
+          
           return {
-            id: componentId,
+            id: isTempId ? null : comp.id,
+            tempId: isTempId ? comp.id : null,
             dashboardId: this.currentDashboard.id,
             componentType: comp.type,
             componentName: comp.name,
@@ -753,13 +752,31 @@ export default {
         const config = {
           dashboard: dashboardData,
           components: components,
-          queryConditions: this.queryConditions.map(cond => ({
-            ...cond,
-            config: typeof cond.config === 'string'
-              ? cond.config
-              : JSON.stringify(cond.config || {})
-          })),
-          conditionMappings: this.conditionMappings
+          queryConditions: this.queryConditions.map(cond => {
+            const isTempId = typeof cond.id === 'string' && (cond.id.startsWith('new_') || cond.id.startsWith('cond_'))
+            return {
+              ...cond,
+              id: isTempId ? null : cond.id,
+              tempId: isTempId ? cond.id : null,
+              config: typeof cond.config === 'string'
+                ? cond.config
+                : JSON.stringify(cond.config || {})
+            }
+          }),
+          conditionMappings: this.conditionMappings.map(m => {
+            const isTempCompId = typeof m.componentId === 'string' && m.componentId.startsWith('comp_')
+            const isTempCondId = typeof m.conditionId === 'string' && (String(m.conditionId).startsWith('new') || String(m.conditionId).startsWith('cond'))
+            const isTempMappingId = typeof m.id === 'string' && m.id.startsWith('mapping_')
+
+            return {
+              ...m,
+              id: isTempMappingId ? null : m.id,
+              componentId: isTempCompId ? null : m.componentId,
+              tempComponentId: isTempCompId ? m.componentId : null,
+              conditionId: isTempCondId ? null : m.conditionId,
+              tempConditionId: isTempCondId ? m.conditionId : null
+            }
+          })
         }
 
         const response = await saveDashboard(config)

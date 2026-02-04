@@ -13,11 +13,14 @@ import com.zjrcu.iras.bi.platform.mapper.ConditionMappingMapper;
 import com.zjrcu.iras.bi.platform.service.IDashboardService;
 import com.zjrcu.iras.common.exception.ServiceException;
 import com.zjrcu.iras.common.utils.StringUtils;
+import com.zjrcu.iras.common.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 仪表板Service业务层处理
@@ -93,6 +96,16 @@ public class DashboardServiceImpl implements IDashboardService {
         }
         if (dashboard.getPublishedVersion() == null) {
             dashboard.setPublishedVersion(0);
+        }
+        
+        // 设置创建人
+        if (StringUtils.isEmpty(dashboard.getCreateBy())) {
+            try {
+                dashboard.setCreateBy(SecurityUtils.getUsername());
+            } catch (Exception e) {
+                // 如果获取当前用户失败，使用默认值
+                dashboard.setCreateBy("system");
+            }
         }
 
         return dashboardMapper.insertDashboard(dashboard);
@@ -203,10 +216,15 @@ public class DashboardServiceImpl implements IDashboardService {
             componentMapper.deleteComponentByDashboardId(dashboardId);
 
             // 插入新组件
+            Map<String, Long> compMap = new HashMap<>();
             if (config.getComponents() != null) {
                 for (DashboardComponent component : config.getComponents()) {
+                    String tempId = component.getTempId();
                     component.setDashboardId(dashboardId);
                     componentMapper.insertComponent(component);
+                    if (StringUtils.isNotEmpty(tempId)) {
+                        compMap.put(tempId, component.getId());
+                    }
                 }
             }
 
@@ -214,10 +232,15 @@ public class DashboardServiceImpl implements IDashboardService {
             queryConditionMapper.deleteConditionByDashboardId(dashboardId);
 
             // 插入新查询条件
+            Map<String, Long> condMap = new HashMap<>();
             if (config.getQueryConditions() != null) {
                 for (QueryCondition condition : config.getQueryConditions()) {
+                    String tempId = condition.getTempId();
                     condition.setDashboardId(dashboardId);
                     queryConditionMapper.insertCondition(condition);
+                    if (StringUtils.isNotEmpty(tempId)) {
+                        condMap.put(tempId, condition.getId());
+                    }
                 }
             }
 
@@ -227,7 +250,26 @@ public class DashboardServiceImpl implements IDashboardService {
             // 插入新条件映射
             if (config.getConditionMappings() != null) {
                 for (ConditionMapping mapping : config.getConditionMappings()) {
-                    conditionMappingMapper.insertMapping(mapping);
+                    // 强制根据 tempId 转换，忽略前端传来的原始 Long ID (防止外键冲突)
+                    Long realCompId = StringUtils.isNotEmpty(mapping.getTempComponentId()) 
+                        ? compMap.get(mapping.getTempComponentId()) 
+                        : null;
+                    Long realCondId = StringUtils.isNotEmpty(mapping.getTempConditionId()) 
+                        ? condMap.get(mapping.getTempConditionId()) 
+                        : null;
+                    
+                    mapping.setComponentId(realCompId);
+                    mapping.setConditionId(realCondId);
+                    
+                    // 只有当两个核心关联ID都成功转换后才插入
+                    if (mapping.getComponentId() != null && mapping.getConditionId() != null) {
+                        mapping.setId(null); // 确保是新插入
+                        conditionMappingMapper.insertMapping(mapping);
+                    } else {
+                        // 打印警告日志或静默跳过
+                        System.err.println("跳过映射保存: 关联ID转换失败. tempCompId=" + 
+                            mapping.getTempComponentId() + ", tempCondId=" + mapping.getTempConditionId());
+                    }
                 }
             }
 

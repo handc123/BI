@@ -31,9 +31,9 @@
           <div class="condition-content">
             <i class="el-icon-menu drag-handle"></i>
 
-            <div v-if="editingId === condition.id" class="condition-name-edit" :data-condition-id="condition.id">
+            <div v-if="editingId === condition.id" class="condition-name-edit">
               <el-input
-                ref="nameInput"
+                :ref="`nameInput_${condition.id}`"
                 v-model="editingName"
                 size="mini"
                 @blur="handleNameBlur"
@@ -146,18 +146,18 @@ export default {
       this.editingId = condition.id
       this.editingName = condition.conditionName
       this.$nextTick(() => {
-        // 查找当前编辑条件的输入框
-        const inputs = this.$refs.nameInput || []
-        const currentInput = inputs.find(input => {
-          // 通过 $el 或其他方式找到对应的输入框
-          return input && input.$el && input.$el.parentNode &&
-                 input.$el.parentNode.getAttribute('data-condition-id') == condition.id
-        })
-        if (currentInput) {
-          currentInput.focus()
-        } else if (inputs.length > 0) {
-          // 降级处理：使用最后一个输入框
-          inputs[inputs.length - 1].focus()
+        // 使用动态 ref 查找对应的输入框
+        const inputRef = this.$refs[`nameInput_${condition.id}`]
+        if (inputRef) {
+          // Element UI 的 input 组件需要调用 focus 方法或访问内部 input 元素
+          if (typeof inputRef.focus === 'function') {
+            inputRef.focus()
+          } else if (inputRef.$el) {
+            const input = inputRef.$el.querySelector('input')
+            if (input) {
+              input.focus()
+            }
+          }
         }
       })
     },

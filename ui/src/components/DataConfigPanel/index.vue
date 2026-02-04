@@ -24,7 +24,7 @@
             @click="removeField('metrics', field)"
           >
             <i class="el-icon-s-data field-icon"></i>
-            <span class="field-name">{{ field.fieldName }}</span>
+            <span class="field-name">{{ field.comment || field.fieldName }}</span>
             <i class="el-icon-close remove-icon"></i>
           </div>
         </draggable>
@@ -33,8 +33,8 @@
         </div>
       </div>
 
-      <!-- 维度拖放区 -->
-      <div class="drop-zone">
+      <!-- 维度拖放区 - 根据图表类型显示 -->
+      <div v-if="requiresDimension" class="drop-zone">
         <div class="zone-label">
           <i class="el-icon-s-grid label-icon"></i>
           <span>维度</span>
@@ -53,7 +53,7 @@
             @click="removeField('dimensions', field)"
           >
             <i class="el-icon-s-grid field-icon"></i>
-            <span class="field-name">{{ field.fieldName }}</span>
+            <span class="field-name">{{ field.comment || field.fieldName }}</span>
             <i class="el-icon-close remove-icon"></i>
           </div>
         </draggable>
@@ -82,7 +82,7 @@
             @click="editFilter(field)"
           >
             <i class="el-icon-filter field-icon"></i>
-            <span class="field-name">{{ field.fieldName }}</span>
+            <span class="field-name">{{ field.comment || field.fieldName }}</span>
             <span class="filter-value">{{ field.operator }} '{{ field.value }}'</span>
             <i class="el-icon-close remove-icon" @click.stop="removeField('filters', field)"></i>
           </div>
@@ -113,7 +113,7 @@
             @click="removeField('count', field)"
           >
             <i class="el-icon-s-marketing field-icon"></i>
-            <span class="field-name">{{ field.fieldName }}</span>
+            <span class="field-name">{{ field.comment || field.fieldName }}</span>
             <i class="el-icon-close remove-icon"></i>
           </div>
         </draggable>
@@ -151,7 +151,7 @@
           <el-option
             v-for="ds in datasources"
             :key="ds.id"
-            :label="ds.datasourceName"
+            :label="ds.name || ds.datasourceName || `数据源${ds.id}`"
             :value="ds.id"
           />
         </el-select>
@@ -170,7 +170,7 @@
           <el-option
             v-for="ds in datasets"
             :key="ds.id"
-            :label="ds.datasetName"
+            :label="ds.name || ds.datasetName || `数据集${ds.id}`"
             :value="ds.id"
           />
         </el-select>
@@ -204,13 +204,13 @@
         </template>
 
         <template v-else>
-          <!-- 维度字段 -->
-          <div v-if="displayDimensionFields.length > 0" class="field-group">
+          <!-- 维度字段 - 根据图表类型显示 -->
+          <div v-if="requiresDimension && displayDimensionFields.length > 0" class="field-group">
             <div class="field-group-title">维度字段</div>
             <draggable
               v-model="displayDimensionFields"
               :sort="false"
-              group="fields"
+              :group="{ name: 'fields', pull: 'clone', put: false }"
               :clone="cloneDimensionField"
               class="field-items"
               draggable=".field-source-item"
@@ -219,10 +219,10 @@
                 v-for="field in displayDimensionFields"
                 :key="field.fieldName"
                 class="field-source-item dimension-source"
+                :title="field.comment || field.fieldName"
               >
                 <i class="el-icon-s-grid field-icon"></i>
-                <span class="field-name">{{ field.fieldName || field.name }}</span>
-                <span v-if="field.comment" class="field-comment">{{ field.comment }}</span>
+                <span class="field-name">{{ field.comment ? field.comment : field.fieldName }}</span>
                 <i class="el-icon-rank drag-handle"></i>
               </div>
             </draggable>
@@ -234,7 +234,7 @@
             <draggable
               v-model="displayMetricFields"
               :sort="false"
-              group="fields"
+              :group="{ name: 'fields', pull: 'clone', put: false }"
               :clone="cloneMetricField"
               class="field-items"
               draggable=".field-source-item"
@@ -243,10 +243,10 @@
                 v-for="field in displayMetricFields"
                 :key="field.fieldName"
                 class="field-source-item metric-source"
+                :title="field.comment || field.fieldName"
               >
                 <i class="el-icon-s-data field-icon"></i>
-                <span class="field-name">{{ field.fieldName || field.name }}</span>
-                <span v-if="field.comment" class="field-comment">{{ field.comment }}</span>
+                <span class="field-name">{{ field.comment ? field.comment : field.fieldName }}</span>
                 <i class="el-icon-rank drag-handle"></i>
               </div>
             </draggable>
@@ -300,6 +300,11 @@ export default {
     draggable
   },
   props: {
+    // 父组件传入的组件对象（用于获取图表类型）
+    component: {
+      type: Object,
+      default: null
+    },
     // 父组件传入的初始配置
     initialConfig: {
       type: Object,
@@ -346,7 +351,19 @@ export default {
   },
   computed: {
     isValidConfig() {
+      // 对于不需要维度的图表，只需要有指标即可
+      if (!this.requiresDimension) {
+        return this.metrics.length > 0
+      }
+      // 对于需要维度的图表，至少需要指标或维度之一
       return this.metrics.length > 0 || this.dimensions.length > 0
+    },
+    // 判断当前图表类型是否需要维度字段
+    requiresDimension() {
+      const chartType = this.component?.styleConfig?.chartType
+      // 不需要维度的图表类型：仪表盘、水球图、指标卡等单值图表
+      const singleValueCharts = ['gauge', 'liquidfill', 'card', 'metricCard']
+      return !singleValueCharts.includes(chartType)
     }
   },
   watch: {
@@ -761,9 +778,29 @@ export default {
             // 加载字段列表
             await this.onDatasetChange(config.datasetId)
 
-            // 加载配置的字段
-            this.metrics = config.metrics || []
-            this.dimensions = config.dimensions || []
+            // 加载配置的字段，并补充 comment 属性
+            this.metrics = (config.metrics || []).map(m => {
+              // 从 metricFields 中查找匹配的字段，获取 comment
+              const matchedField = this.metricFields.find(f => 
+                (f.fieldName || f.name) === (m.fieldName || m.name)
+              )
+              return {
+                ...m,
+                comment: matchedField?.comment || m.comment
+              }
+            })
+            
+            this.dimensions = (config.dimensions || []).map(d => {
+              // 从 dimensionFields 中查找匹配的字段，获取 comment
+              const matchedField = this.dimensionFields.find(f => 
+                (f.fieldName || f.name) === (d.fieldName || d.name)
+              )
+              return {
+                ...d,
+                comment: matchedField?.comment || d.comment
+              }
+            })
+            
             this.filters = config.filters || []
             this.countField = config.count ? [config.count] : []
 
@@ -791,7 +828,12 @@ export default {
     handleUpdate() {
 
       if (!this.isValidConfig) {
-        this.$message.warning('请至少配置一个指标或维度')
+        // 根据图表类型给出不同的提示
+        if (!this.requiresDimension) {
+          this.$message.warning('请至少配置一个指标')
+        } else {
+          this.$message.warning('请至少配置一个指标或维度')
+        }
         return
       }
 
@@ -1068,7 +1110,8 @@ export default {
 
 .field-source-item .field-name {
   flex: 1;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   color: #303133;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1077,11 +1120,13 @@ export default {
 
 .field-comment {
   margin-left: 8px;
-  font-size: 11px;
-  color: #909399;
+  font-size: 10px;
+  color: #c0c4cc;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100px;
+  flex-shrink: 0;
 }
 
 .drag-handle {

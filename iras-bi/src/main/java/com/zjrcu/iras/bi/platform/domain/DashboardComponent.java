@@ -60,6 +60,9 @@ public class DashboardComponent implements Serializable {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date updateTime;
 
+    /** 临时ID(用于保存时建立关联) */
+    private String tempId;
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -170,6 +173,14 @@ public class DashboardComponent implements Serializable {
 
     public Date getUpdateTime() {
         return updateTime;
+    }
+
+    public String getTempId() {
+        return tempId;
+    }
+
+    public void setTempId(String tempId) {
+        this.tempId = tempId;
     }
 
     @Override

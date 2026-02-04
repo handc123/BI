@@ -69,16 +69,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <insert id="insertMapping" parameterType="com.zjrcu.iras.bi.platform.domain.ConditionMapping" useGeneratedKeys="true" keyProperty="id">
         insert into bi_condition_mapping
         <trim prefix="(" suffix=")" suffixOverrides=",">
-            <if test="conditionId != null">condition_id,</if>
-            <if test="componentId != null">component_id,</if>
+            condition_id,
+            component_id,
             <if test="tableName != null and tableName != ''">table_name,</if>
             <if test="fieldName != null and fieldName != ''">field_name,</if>
             <if test="mappingType != null">mapping_type,</if>
             create_time
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
-            <if test="conditionId != null">#{conditionId},</if>
-            <if test="componentId != null">#{componentId},</if>
+            #{conditionId},
+            #{componentId},
             <if test="tableName != null and tableName != ''">#{tableName},</if>
             <if test="fieldName != null and fieldName != ''">#{fieldName},</if>
             <if test="mappingType != null">#{mappingType},</if>

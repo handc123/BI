@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -304,6 +305,28 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
     }
 
     /**
+     * 判断列表是否可能是日期范围
+     */
+    private boolean isPotentialDateRange(List<?> list) {
+        if (list.size() != 2) return false;
+        Object first = list.get(0);
+        Object second = list.get(1);
+        
+        if (first == null || second == null) return false;
+        
+        // 如果是字符串,检查是否符合常见日期格式
+        if (first instanceof String && second instanceof String) {
+            String s1 = (String) first;
+            String s2 = (String) second;
+            return (s1.matches("\\d{4}-\\d{2}-\\d{2}.*") && s2.matches("\\d{4}-\\d{2}-\\d{2}.*")) ||
+                   (s1.matches("\\d{2}:\\d{2}.*") && s2.matches("\\d{2}:\\d{2}.*"));
+        }
+        
+        // 如果是日期对象
+        return first instanceof java.util.Date && second instanceof java.util.Date;
+    }
+
+    /**
      * 验证JSON配置格式
      * 
      * @param jsonConfig JSON配置字符串
@@ -347,11 +370,43 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
             // 添加查询参数作为过滤条件
             if (queryRequest.getParams() != null && !queryRequest.getParams().isEmpty()) {
                 for (Map.Entry<String, Object> entry : queryRequest.getParams().entrySet()) {
-                    if (entry.getValue() != null) {
+                    Object value = entry.getValue();
+                    if (value != null) {
                         Filter filter = new Filter();
                         filter.setField(entry.getKey());
-                        filter.setOperator("eq");
-                        filter.setValue(entry.getValue());
+                        
+                        // 动态判断操作符
+                        if (value instanceof List) {
+                            List<?> listValue = (List<?>) value;
+                            if (listValue.isEmpty()) continue;
+                            
+                            // 如果是日期范围(通常为2个值的列表)
+                            if (listValue.size() == 2 && isPotentialDateRange(listValue)) {
+                                filter.setOperator("between");
+                                List<Object> values = new ArrayList<>();
+                                values.add(listValue.get(0));
+                                values.add(listValue.get(1));
+                                filter.setValues(values);
+                            } else {
+                                // 普通多选列表使用 IN
+                                filter.setOperator("in");
+                                List<Object> values = new ArrayList<>(listValue);
+                                filter.setValues(values);
+                            }
+                        } else if (value.getClass().isArray()) {
+                            filter.setOperator("in");
+                            // 数组转为 List
+                            List<Object> values = new ArrayList<>();
+                            if (value instanceof Object[]) {
+                                Collections.addAll(values, (Object[]) value);
+                            }
+                            filter.setValues(values);
+                        } else {
+                            // 单个值使用等于
+                            filter.setOperator("eq");
+                            filter.setValue(value);
+                        }
+                        
                         filters.add(filter);
                     }
                 }

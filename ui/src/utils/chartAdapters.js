@@ -740,11 +740,13 @@ function buildGrid(styleConfig) {
   const grid = styleConfig.grid || {}
   
   return {
-    top: grid.top !== undefined ? grid.top : 40,
-    right: grid.right !== undefined ? grid.right : 10,
-    bottom: grid.bottom !== undefined ? grid.bottom : 40,
-    left: grid.left !== undefined ? grid.left : 50,
-    containLabel: true
+    // 优化边距：containLabel为true时会自动计算标签空间
+    // 但顶部和底部需要适当增加以防止图表线条被截断
+    top: grid.top !== undefined ? grid.top : 30,
+    right: grid.right !== undefined ? grid.right : 15,
+    bottom: grid.bottom !== undefined ? grid.bottom : 30,
+    left: grid.left !== undefined ? grid.left : 15,
+    containLabel: true  // 自动计算并包含坐标轴标签的空间
   }
 }
 

@@ -20,7 +20,7 @@
 
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="stats-section">
-      <el-col :xs="24" :sm="12" :md="6">
+      <el-col :xs="24" :sm="12" :md="8">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon datasource-icon">
@@ -39,7 +39,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6">
+      <el-col :xs="24" :sm="12" :md="8">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon dataset-icon">
@@ -58,26 +58,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon visualization-icon">
-              <i class="el-icon-s-marketing"></i>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ stats.visualizationCount }}</div>
-              <div class="stat-label">可视化</div>
-            </div>
-          </div>
-          <div class="stat-footer">
-            <el-button type="text" size="small" @click="goToPage('/bi/visualization')">
-              管理可视化 <i class="el-icon-arrow-right"></i>
-            </el-button>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :xs="24" :sm="12" :md="6">
+      <el-col :xs="24" :sm="12" :md="8">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
             <div class="stat-icon dashboard-icon">
@@ -148,12 +129,7 @@
                 <i class="el-icon-s-grid"></i>
               </template>
             </el-step>
-            <el-step title="设计可视化" description="选择图表类型和配置">
-              <template slot="icon">
-                <i class="el-icon-s-marketing"></i>
-              </template>
-            </el-step>
-            <el-step title="创建仪表板" description="组合可视化组件">
+            <el-step title="创建仪表板" description="设计数据展示仪表板">
               <template slot="icon">
                 <i class="el-icon-s-platform"></i>
               </template>
@@ -166,10 +142,7 @@
             <el-button v-else-if="activeStep === 1" type="primary" @click="goToPage('/bi/dataset')">
               创建数据集
             </el-button>
-            <el-button v-else-if="activeStep === 2" type="primary" @click="goToPage('/bi/visualization')">
-              设计可视化
-            </el-button>
-            <el-button v-else-if="activeStep === 3" type="primary" @click="goToPage('/bi/dashboard')">
+            <el-button v-else-if="activeStep === 2" type="primary" @click="goToPage('/bi/dashboard')">
               创建仪表板
             </el-button>
             <el-button v-else type="success" @click="goToPage('/bi/dashboard')">
@@ -200,6 +173,8 @@
 
 <script>
 import { listDashboard, addDashboard } from '@/api/bi/dashboard'
+import { listDataSource } from '@/api/bi/datasource'
+import { listDataset } from '@/api/bi/dataset'
 
 export default {
   name: 'BiIndex',
@@ -209,7 +184,6 @@ export default {
       stats: {
         datasourceCount: 0,
         datasetCount: 0,
-        visualizationCount: 0,
         dashboardCount: 0
       },
       // 最近访问的仪表板
@@ -233,19 +207,27 @@ export default {
   created() {
     this.loadStats()
     this.loadRecentDashboards()
-    this.calculateActiveStep()
   },
   methods: {
     // 加载统计数据
     loadStats() {
-      // 这里应该调用实际的API获取统计数据
-      // 暂时使用模拟数据
-      this.stats = {
-        datasourceCount: 5,
-        datasetCount: 12,
-        visualizationCount: 28,
-        dashboardCount: 8
-      }
+      // 并行调用三个接口获取真实统计数据
+      const datasourcePromise = listDataSource({ pageNum: 1, pageSize: 1 })
+      const datasetPromise = listDataset({ pageNum: 1, pageSize: 1 })
+      const dashboardPromise = listDashboard({ pageNum: 1, pageSize: 1 })
+
+      Promise.all([datasourcePromise, datasetPromise, dashboardPromise])
+        .then(([datasourceRes, datasetRes, dashboardRes]) => {
+          this.stats.datasourceCount = datasourceRes.total || 0
+          this.stats.datasetCount = datasetRes.total || 0
+          this.stats.dashboardCount = dashboardRes.total || 0
+          // 统计数据加载完成后计算当前步骤
+          this.calculateActiveStep()
+        })
+        .catch(error => {
+          console.error('加载统计数据失败:', error)
+          this.$modal.msgError('加载统计数据失败')
+        })
     },
     // 加载最近访问的仪表板
     loadRecentDashboards() {
@@ -266,12 +248,10 @@ export default {
         this.activeStep = 0
       } else if (this.stats.datasetCount === 0) {
         this.activeStep = 1
-      } else if (this.stats.visualizationCount === 0) {
-        this.activeStep = 2
       } else if (this.stats.dashboardCount === 0) {
-        this.activeStep = 3
+        this.activeStep = 2
       } else {
-        this.activeStep = 4
+        this.activeStep = 3
       }
     },
     // 跳转到指定页面

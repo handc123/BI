@@ -33,6 +33,16 @@
         class="view-canvas"
         :style="getCanvasStyle()"
       >
+        <!-- 查询条件区域 -->
+        <div v-if="queryConditions.length > 0" class="query-conditions-bar">
+          <query-widget
+            :conditions="queryConditions"
+            :is-edit-mode="false"
+            @query="handleQuery"
+            @reset="handleResetQuery"
+          />
+        </div>
+
         <!-- 渲染所有组件 -->
         <div
           v-for="component in components"
@@ -49,13 +59,13 @@
               styleConfig: component.styleConfig,
               advancedConfig: component.advancedConfig
             }"
-            :query-params="{}"
-            :condition-mappings="[]"
-            :query-conditions="[]"
+            :query-params="queryParams"
+            :condition-mappings="getComponentMappings(component.id)"
+            :query-conditions="queryConditions"
             :is-edit-mode="false"
           />
 
-          <!-- 查询组件 -->
+          <!-- 查询组件(设计器添加的) -->
           <query-widget
             v-else-if="component.type === 'query'"
             :component-id="component.id"
@@ -110,7 +120,10 @@ export default {
           fontFamily: 'Microsoft YaHei'
         }
       },
-      components: []
+      components: [],
+      queryConditions: [],
+      conditionMappings: [],
+      queryParams: {}
     }
   },
   computed: {
@@ -163,6 +176,27 @@ export default {
           advancedConfig: this.parseJSON(comp.advancedConfig, {})
         }))
 
+        // 设置查询条件
+        this.queryConditions = (config.queryConditions || []).map(cond => ({
+          id: cond.id,
+          dashboardId: cond.dashboardId,
+          componentId: cond.componentId,
+          conditionName: cond.conditionName,
+          conditionType: cond.conditionType,
+          displayOrder: cond.displayOrder,
+          isRequired: cond.isRequired,
+          isVisible: cond.isVisible,
+          defaultValue: cond.defaultValue,
+          config: this.parseJSON(cond.config, {}),
+          parentConditionId: cond.parentConditionId
+        }))
+
+        // 设置条件映射
+        this.conditionMappings = config.conditionMappings || []
+
+        // 初始化查询参数（使用默认值）
+        this.initializeQueryParams()
+
         this.$message.success('仪表板加载成功')
       } catch (error) {
         console.error('加载仪表板失败:', error)
@@ -170,6 +204,16 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+
+    // 初始化查询参数
+    initializeQueryParams() {
+      this.queryParams = {}
+      this.queryConditions.forEach(condition => {
+        if (condition.defaultValue) {
+          this.queryParams[condition.id] = condition.defaultValue
+        }
+      })
     },
 
     // 返回列表
@@ -191,7 +235,22 @@ export default {
 
     // 处理查询
     handleQuery(queryData) {
-      // 可以在这里实现全局查询逻辑
+      console.log('[DashboardView] 查询参数:', queryData)
+      // 更新查询参数
+      this.queryParams = { ...queryData }
+      this.$message.success('查询条件已更新，正在刷新图表...')
+    },
+
+    // 重置查询
+    handleResetQuery() {
+      console.log('[DashboardView] 重置查询')
+      this.initializeQueryParams()
+      this.$message.info('查询已重置')
+    },
+
+    // 获取组件的条件映射
+    getComponentMappings(componentId) {
+      return this.conditionMappings.filter(m => m.componentId === componentId)
     },
 
     // 获取画布样式
@@ -291,6 +350,17 @@ export default {
 .view-canvas {
   margin: 0 auto;
   box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+
+.query-conditions-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #ffffff;
+  border-bottom: 1px solid #e4e7ed;
+  margin-bottom: 20px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .view-component {

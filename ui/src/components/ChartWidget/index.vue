@@ -35,6 +35,7 @@
       v-show="!loading && !error"
       ref="chartContainer"
       class="chart-container"
+      :class="{ 'with-toolbar': isEditMode }"
       :style="{ height: isEditMode ? 'calc(100% - 40px)' : '100%' }"
     ></div>
   </div>
@@ -87,7 +88,8 @@ export default {
       loading: false,
       error: null,
       refreshTimer: null,
-      lastQueryParams: null
+      lastQueryParams: null,
+      resizeObserver: null  // ResizeObserver 实例
     }
   },
   computed: {
@@ -166,6 +168,23 @@ export default {
       deep: true
     },
 
+    // 监听组件尺寸变化，触发图表resize
+    'config.size': {
+      handler(newVal, oldVal) {
+        if (!oldVal || !newVal) {
+          return
+        }
+        // 尺寸变化时，延迟触发resize以确保OM已更新
+        this.$nextTick(() => {
+          if (this.chartInstance) {
+            this.chartInstance.resize()
+            console.log('[ChartWidget] 图表已resize，新尺寸:', newVal)
+          }
+        })
+      },
+      deep: true
+    },
+
     // 监听刷新触发器
     'config._refreshTrigger': {
       handler(newVal) {
@@ -215,10 +234,19 @@ export default {
 
     // 监听窗口大小变化
     window.addEventListener('resize', this.handleResize)
+
+    // 使用 ResizeObserver 监听容器尺寸变化
+    this.setupResizeObserver()
   },
   beforeDestroy() {
     this.clearAutoRefresh()
     window.removeEventListener('resize', this.handleResize)
+
+    // 清理 ResizeObserver
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect()
+      this.resizeObserver = null
+    }
 
     if (this.chartInstance) {
       this.chartInstance.dispose()
@@ -656,6 +684,31 @@ export default {
     },
 
     /**
+     * 设置 ResizeObserver 监听容器尺寸变化
+     */
+    setupResizeObserver() {
+      if (!this.$refs.chartContainer) {
+        return
+      }
+
+      // 如果浏览器支持 ResizeObserver
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          if (this.chartInstance) {
+            // 使用 requestAnimationFrame 优化性能
+            requestAnimationFrame(() => {
+              if (this.chartInstance) {
+                this.chartInstance.resize()
+              }
+            })
+          }
+        })
+
+        this.resizeObserver.observe(this.$refs.chartContainer)
+      }
+    },
+
+    /**
      * 处理下钻
      */
     handleDrillDown(params) {
@@ -756,13 +809,22 @@ export default {
 .chart-container {
   width: 100%;
   height: 100%;
-  /* 确保容器有最小尺寸，避免 ECharts 初始化失败 */
+  /* 确保容器有最小尺寸，避免ECharts初始化失败 */
   min-width: 100px;
   min-height: 100px;
   box-sizing: border-box;
   /* 强制限制最大宽度，图表必须适应容器 */
   max-width: 100%;
   overflow: hidden;
+}
+
+/* 编辑模式下，图表容器需要向下移动避开工具栏 */
+.chart-container.with-toolbar {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 /* 编辑模式工具栏 */
