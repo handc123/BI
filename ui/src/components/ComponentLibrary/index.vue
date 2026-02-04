@@ -455,22 +455,12 @@ export default {
       
       this.$emit('add-component', component)
       
-      
-      // 添加组件后立即清理可能产生的遮罩层
-      this.$nextTick(() => {
-        this.cleanupModals()
-        // 确保页面可交互
-        document.body.style.pointerEvents = 'auto'
-        const rootEl = document.querySelector('.dashboard-designer-page')
-        if (rootEl) {
-          rootEl.style.pointerEvents = 'auto'
-        }
-        
-        // 检查遮罩层
-        const modals = document.querySelectorAll('.v-modal')
-      })
-      
       this.$message.success('组件已添加到画布')
+      
+      // 添加组件后自动关闭对话框
+      this.$nextTick(() => {
+        this.handleManualClose()
+      })
     },
 
     // 删除模板

@@ -245,21 +245,14 @@
             >
               <el-option
                 v-for="table in tableList"
-                :key="table"
-                :label="table"
-                :value="table"
-              />
+                :key="table.tableName"
+                :label="table.tableComment || table.tableName"
+                :value="table.tableName"
+              >
+                <span style="float: left">{{ table.tableComment }}</span>
+                <span style="float: right; color: #8492a6; font-size: 12px">{{ table.tableName }}</span>
+              </el-option>
             </el-select>
-            <el-button 
-              type="text" 
-              size="small" 
-              icon="el-icon-refresh" 
-              @click="loadTableList"
-              :loading="tableListLoading"
-              style="margin-left: 10px"
-            >
-              刷新表列表
-            </el-button>
           </el-form-item>
 
           <el-form-item
@@ -934,11 +927,10 @@ export default {
         this.form.queryConfig.tableName = ''
       }
       
-      // 不自动加载表列表，改为手动点击刷新按钮加载
-      // 如果选择了数据源且查询类型是表查询，则加载表列表
-      // if (dataSourceId && this.form.queryConfig && this.form.queryConfig.sourceType === 'table') {
-      //   this.loadTableList()
-      // }
+      // 自动加载表列表
+      if (dataSourceId && this.form.queryConfig && this.form.queryConfig.sourceType === 'table') {
+        this.loadTableList()
+      }
     },
 
     /** 加载表列表 */
@@ -953,8 +945,6 @@ export default {
         this.tableList = response.data || []
         if (this.tableList.length === 0) {
           this.$modal.msgWarning("该数据源没有可用的表")
-        } else {
-          this.$modal.msgSuccess(`成功加载 ${this.tableList.length} 个表`)
         }
         this.tableListLoading = false
       }).catch(error => {

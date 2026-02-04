@@ -371,6 +371,49 @@ public class DataSourceServiceImpl implements IDataSourceService {
     }
 
     /**
+     * 获取数据源的表列表（包含表名和注释）
+     *
+     * @param dataSourceId 数据源ID
+     * @return 表信息列表
+     */
+    @Override
+    public List<Map<String, String>> getTableListWithComments(Long dataSourceId) {
+        if (dataSourceId == null) {
+            throw new ServiceException("数据源ID不能为空");
+        }
+
+        // 获取数据源信息
+        DataSource dataSource = dataSourceMapper.selectDataSourceById(dataSourceId);
+        if (dataSource == null) {
+            throw new ServiceException("数据源不存在");
+        }
+
+        // 只支持数据库类型的数据源
+        if (!isDatabaseType(dataSource.getType())) {
+            throw new ServiceException("只有数据库类型的数据源支持获取表列表");
+        }
+
+        // 解密密码
+        decryptPassword(dataSource);
+
+        try {
+            // 检查数据源是否已初始化，如果没有则初始化
+            if (!dataSourceManager.isDataSourceInitialized(dataSourceId)) {
+                dataSourceManager.initializeDataSource(dataSource);
+            }
+
+            // 获取表列表（包含注释）
+            List<Map<String, String>> tables = dataSourceManager.getTableListWithComments(dataSourceId);
+            
+            log.info("获取数据源表列表成功（包含注释）: dataSourceId={}, tableCount={}", dataSourceId, tables.size());
+            return tables;
+        } catch (Exception e) {
+            log.error("获取数据源表列表失败（包含注释）: dataSourceId={}, error={}", dataSourceId, e.getMessage());
+            throw new ServiceException("获取表列表失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 获取表结构信息
      *
      * @param dataSourceId 数据源ID

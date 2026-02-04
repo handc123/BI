@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * BI数据源管理Controller
@@ -87,7 +88,7 @@ public class DataSourceController extends BaseController {
     @GetMapping("/{id}/tables")
     public AjaxResult getTables(@PathVariable Long id) {
         try {
-            List<String> tables = dataSourceService.getTableList(id);
+            List<Map<String, String>> tables = dataSourceService.getTableListWithComments(id);
             return success(tables);
         } catch (Exception e) {
             logger.error("获取表列表失败: dataSourceId={}", id, e);

@@ -716,6 +716,56 @@ public class DataSourceManager {
     }
 
     /**
+     * 获取指定数据源的表列表（包含表名和注释）
+     *
+     * @param dataSourceId 数据源ID
+     * @return 表信息列表，每个元素包含 tableName 和 tableComment
+     */
+    public List<Map<String, String>> getTableListWithComments(Long dataSourceId) {
+        if (dataSourceId == null) {
+            throw new ServiceException("数据源ID不能为空");
+        }
+
+        Connection connection = null;
+        try {
+            connection = getConnection(dataSourceId);
+            DatabaseMetaData metaData = connection.getMetaData();
+            
+            List<Map<String, String>> tables = new java.util.ArrayList<>();
+            
+            // 获取当前连接的数据库名称
+            String catalog = connection.getCatalog();
+            String schema = connection.getSchema();
+            
+            log.debug("获取表列表（包含注释）: dataSourceId={}, catalog={}, schema={}", dataSourceId, catalog, schema);
+            
+            try (java.sql.ResultSet rs = metaData.getTables(catalog, schema, "%", new String[]{"TABLE"})) {
+                while (rs.next()) {
+                    String tableName = rs.getString("TABLE_NAME");
+                    String tableComment = rs.getString("REMARKS");
+                    
+                    // 过滤掉系统表
+                    if (!isSystemTable(tableName)) {
+                        Map<String, String> tableInfo = new java.util.HashMap<>();
+                        tableInfo.put("tableName", tableName);
+                        tableInfo.put("tableComment", StringUtils.isNotEmpty(tableComment) ? tableComment : tableName);
+                        tables.add(tableInfo);
+                    }
+                }
+            }
+            
+            log.info("获取表列表成功（包含注释）: dataSourceId={}, catalog={}, schema={}, tableCount={}", 
+                    dataSourceId, catalog, schema, tables.size());
+            return tables;
+        } catch (SQLException e) {
+            log.error("获取表列表失败（包含注释）: dataSourceId={}, error={}", dataSourceId, e.getMessage());
+            throw new ServiceException("获取表列表失败: " + getDetailedErrorMessage(e));
+        } finally {
+            releaseConnection(connection);
+        }
+    }
+
+    /**
      * 判断是否为系统表
      *
      * @param tableName 表名

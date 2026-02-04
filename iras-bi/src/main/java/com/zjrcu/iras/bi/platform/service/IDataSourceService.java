@@ -4,6 +4,7 @@ import com.zjrcu.iras.bi.platform.domain.DataSource;
 import com.zjrcu.iras.bi.platform.domain.dto.ConnectionTestResult;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * BI数据源服务接口
@@ -75,6 +76,14 @@ public interface IDataSourceService {
      * @return 表名列表
      */
     List<String> getTableList(Long dataSourceId);
+
+    /**
+     * 获取数据源的表列表（包含表名和注释）
+     *
+     * @param dataSourceId 数据源ID
+     * @return 表信息列表，每个元素包含 tableName 和 tableComment
+     */
+    List<Map<String, String>> getTableListWithComments(Long dataSourceId);
 
     /**
      * 获取表结构信息
