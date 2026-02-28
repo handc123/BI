@@ -140,7 +140,20 @@ export default {
           height: 1080,
           gridSize: 10,
           margin: { top: 20, right: 20, bottom: 20, left: 20 },
-          background: { type: 'color', value: '#ffffff', opacity: 1 }
+          background: { type: 'color', value: '#ffffff', opacity: 1 },
+          // 卡片样式
+          card: { enabled: true, shadowType: 'default', shadowColor: 'rgba(0, 0, 0, 0.1)', borderRadius: 8 },
+          // 布局配置
+          layout: { type: 'grid', columns: 2, gap: 16 },
+          // 网格配置
+          gridColor: '#e0e0e0',
+          columnDividerColor: '#409eff',
+          showGrid: true,
+          // 响应式配置
+          responsive: {
+            enabled: false,
+            breakpoints: { sm: '768px', md: '1024px', lg: '1520px' }
+          }
         },
         globalStyle: {
           colorScheme: ['#5470c6', '#91cc75', '#fac858'],
@@ -152,8 +165,6 @@ export default {
   },
   watch: {
     dashboard: {
-      immediate: false, // 改为 false 避免初始加载时触发
-      deep: false, // 改为 false 避免深度监听导致性能问题
       handler(val) {
         if (val) {
           this.form = {
@@ -163,40 +174,13 @@ export default {
             globalStyle: val.globalStyle || this.form.globalStyle
           }
         }
-      }
+      },
+      deep: true,
+      immediate: true
     }
   },
   mounted() {
-    // 初始化表单数据，使用 $nextTick 确保 props 已传递
-    this.$nextTick(() => {
-      if (this.dashboard) {
-        // 确保 canvasConfig 和 globalStyle 是对象，不是 undefined
-        const defaultCanvasConfig = {
-          width: 1520,
-          height: 1080,
-          gridSize: 10,
-          margin: { top: 20, right: 20, bottom: 20, left: 20 },
-          background: { type: 'color', value: '#ffffff', opacity: 1 }
-        }
-        
-        const defaultGlobalStyle = {
-          colorScheme: ['#5470c6', '#91cc75', '#fac858'],
-          titleStyle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-          fontFamily: 'Microsoft YaHei'
-        }
-        
-        this.form = {
-          dashboardName: this.dashboard.dashboardName || this.dashboard.name || '',
-          theme: this.dashboard.theme || 'light',
-          canvasConfig: this.dashboard.canvasConfig ? 
-            { ...defaultCanvasConfig, ...this.dashboard.canvasConfig } : 
-            defaultCanvasConfig,
-          globalStyle: this.dashboard.globalStyle ? 
-            { ...defaultGlobalStyle, ...this.dashboard.globalStyle } : 
-            defaultGlobalStyle
-        }
-      }
-    })
+    // 数据已在 watcher 中初始化
   },
   methods: {
     handleChange() {

@@ -14,6 +14,7 @@ import com.zjrcu.iras.bi.platform.service.IDashboardService;
 import com.zjrcu.iras.common.exception.ServiceException;
 import com.zjrcu.iras.common.utils.StringUtils;
 import com.zjrcu.iras.common.utils.SecurityUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ import java.util.Map;
  * @date 2026-01-20
  */
 @Service
+@Slf4j
 public class DashboardServiceImpl implements IDashboardService {
     @Autowired
     private DashboardMapper dashboardMapper;
@@ -44,7 +46,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 查询仪表板
-     * 
+     *
      * @param id 仪表板主键
      * @return 仪表板
      */
@@ -55,7 +57,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 查询仪表板列表
-     * 
+     *
      * @param dashboard 仪表板
      * @return 仪表板
      */
@@ -66,7 +68,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 新增仪表板
-     * 
+     *
      * @param dashboard 仪表板
      * @return 结果
      */
@@ -97,7 +99,7 @@ public class DashboardServiceImpl implements IDashboardService {
         if (dashboard.getPublishedVersion() == null) {
             dashboard.setPublishedVersion(0);
         }
-        
+
         // 设置创建人
         if (StringUtils.isEmpty(dashboard.getCreateBy())) {
             try {
@@ -113,7 +115,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 修改仪表板
-     * 
+     *
      * @param dashboard 仪表板
      * @return 结果
      */
@@ -126,8 +128,8 @@ public class DashboardServiceImpl implements IDashboardService {
         }
 
         // 如果修改名称,检查名称重复
-        if (StringUtils.isNotEmpty(dashboard.getDashboardName()) 
-            && !dashboard.getDashboardName().equals(existing.getDashboardName())) {
+        if (StringUtils.isNotEmpty(dashboard.getDashboardName())
+                && !dashboard.getDashboardName().equals(existing.getDashboardName())) {
             Dashboard duplicate = dashboardMapper.selectDashboardByName(dashboard.getDashboardName());
             if (duplicate != null && !duplicate.getId().equals(dashboard.getId())) {
                 throw new ServiceException("仪表板名称已存在");
@@ -143,7 +145,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 批量删除仪表板
-     * 
+     *
      * @param ids 需要删除的仪表板主键
      * @return 结果
      */
@@ -156,7 +158,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 删除仪表板信息
-     * 
+     *
      * @param id 仪表板主键
      * @return 结果
      */
@@ -169,7 +171,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 获取仪表板完整配置
-     * 
+     *
      * @param id 仪表板主键
      * @return 仪表板配置
      */
@@ -191,9 +193,9 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 保存仪表板完整配置
-     * 
+     *
      * @param dashboardId 仪表板主键
-     * @param config 仪表板配置
+     * @param config      仪表板配置
      * @return 结果
      */
     @Override
@@ -223,6 +225,7 @@ public class DashboardServiceImpl implements IDashboardService {
                     component.setDashboardId(dashboardId);
                     componentMapper.insertComponent(component);
                     if (StringUtils.isNotEmpty(tempId)) {
+                        // 支持字符串类型的临时ID（包括 "comp_xxx" 或 "-1" 这样的负数字符串）
                         compMap.put(tempId, component.getId());
                     }
                 }
@@ -239,6 +242,7 @@ public class DashboardServiceImpl implements IDashboardService {
                     condition.setDashboardId(dashboardId);
                     queryConditionMapper.insertCondition(condition);
                     if (StringUtils.isNotEmpty(tempId)) {
+                        // 支持字符串类型的临时ID（包括 "-1", "-2" 这样的负数字符串）
                         condMap.put(tempId, condition.getId());
                     }
                 }
@@ -249,28 +253,41 @@ public class DashboardServiceImpl implements IDashboardService {
 
             // 插入新条件映射
             if (config.getConditionMappings() != null) {
+                log.info("开始保存条件映射，总数: {}", config.getConditionMappings().size());
+                log.info("组件ID映射表: {}", compMap);
+                log.info("条件ID映射表: {}", condMap);
+
                 for (ConditionMapping mapping : config.getConditionMappings()) {
                     // 强制根据 tempId 转换，忽略前端传来的原始 Long ID (防止外键冲突)
-                    Long realCompId = StringUtils.isNotEmpty(mapping.getTempComponentId()) 
-                        ? compMap.get(mapping.getTempComponentId()) 
-                        : null;
-                    Long realCondId = StringUtils.isNotEmpty(mapping.getTempConditionId()) 
-                        ? condMap.get(mapping.getTempConditionId()) 
-                        : null;
-                    
+                    String tempCompId = mapping.getTempComponentId();
+                    String tempCondId = mapping.getTempConditionId();
+
+                    Long realCompId = StringUtils.isNotEmpty(tempCompId)
+                            ? compMap.get(tempCompId)
+                            : null;
+                    Long realCondId = StringUtils.isNotEmpty(tempCondId)
+                            ? condMap.get(tempCondId)
+                            : null;
+
+                    log.debug("处理映射: tempCompId={}, tempCondId={}, realCompId={}, realCondId={}, fieldName={}",
+                            tempCompId, tempCondId, realCompId, realCondId, mapping.getFieldName());
+
                     mapping.setComponentId(realCompId);
                     mapping.setConditionId(realCondId);
-                    
+
                     // 只有当两个核心关联ID都成功转换后才插入
                     if (mapping.getComponentId() != null && mapping.getConditionId() != null) {
                         mapping.setId(null); // 确保是新插入
                         conditionMappingMapper.insertMapping(mapping);
+                        log.info("成功插入映射: componentId={}, conditionId={}, fieldName={}",
+                                realCompId, realCondId, mapping.getFieldName());
                     } else {
                         // 打印警告日志或静默跳过
-                        System.err.println("跳过映射保存: 关联ID转换失败. tempCompId=" + 
-                            mapping.getTempComponentId() + ", tempCondId=" + mapping.getTempConditionId());
+                        log.warn("跳过映射保存: 关联ID转换失败. tempCompId={}, tempCondId={}, realCompId={}, realCondId={}",
+                                tempCompId, tempCondId, realCompId, realCondId);
                     }
                 }
+                log.info("条件映射保存完成");
             }
 
             return 1;
@@ -281,7 +298,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 发布仪表板
-     * 
+     *
      * @param id 仪表板主键
      * @return 结果
      */
@@ -306,24 +323,24 @@ public class DashboardServiceImpl implements IDashboardService {
 
         // 增加版本号并更新状态为已发布
         Integer newVersion = dashboard.getPublishedVersion() + 1;
-        
+
         // 更新状态为已发布(1)
         dashboard.setStatus("1");
         dashboard.setPublishedVersion(newVersion);
-        
+
         int result = dashboardMapper.publishDashboard(id, newVersion);
-        
+
         if (result > 0) {
             // 发布成功后,可以在这里添加发布通知、审计日志等逻辑
             // TODO: 添加审计日志记录
         }
-        
+
         return result;
     }
 
     /**
      * 取消发布仪表板(恢复为草稿状态)
-     * 
+     *
      * @param id 仪表板主键
      * @return 结果
      */
@@ -346,7 +363,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 编辑已发布的仪表板 - 创建草稿副本
-     * 
+     *
      * @param id 仪表板主键
      * @return 草稿副本ID
      */
@@ -433,7 +450,7 @@ public class DashboardServiceImpl implements IDashboardService {
 
     /**
      * 验证JSON配置格式
-     * 
+     *
      * @param jsonConfig JSON配置字符串
      * @param configName 配置名称
      */

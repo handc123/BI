@@ -15,7 +15,20 @@ const state = {
       height: 1080,
       gridSize: 10,
       margin: { top: 20, right: 20, bottom: 20, left: 20 },
-      background: { type: 'color', value: '#ffffff', opacity: 1 }
+      background: { type: 'color', value: '#ffffff', opacity: 1 },
+      // 卡片样式
+      card: { enabled: true, shadowType: 'default', shadowColor: 'rgba(0, 0, 0, 0.1)', borderRadius: 8 },
+      // 布局配置
+      layout: { type: 'grid', columns: 2, gap: 16 },
+      // 网格配置
+      gridColor: '#e0e0e0',
+      columnDividerColor: '#409eff',
+      showGrid: true,
+      // 响应式配置
+      responsive: {
+        enabled: false,
+        breakpoints: { sm: '768px', md: '1024px', lg: '1520px' }
+      }
     },
     globalStyle: {
       colorScheme: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'],
@@ -82,7 +95,24 @@ const mutations = {
    * 更新画布配置
    */
   UPDATE_CANVAS_CONFIG(state, config) {
-    state.currentDashboard.canvasConfig = { ...state.currentDashboard.canvasConfig, ...config }
+    console.log('[Dashboard Store] UPDATE_CANVAS_CONFIG 被调用:', config)
+
+    // 对于嵌套对象（background, card, margin等），完全替换而不是合并
+    // 这样可以确保 Vue 的深度监听能够正确触发
+    const newCanvasConfig = { ...state.currentDashboard.canvasConfig }
+
+    Object.keys(config).forEach(key => {
+      const value = config[key]
+      // 对于嵌套对象，完全替换
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        newCanvasConfig[key] = { ...value }
+      } else {
+        newCanvasConfig[key] = value
+      }
+    })
+
+    state.currentDashboard.canvasConfig = newCanvasConfig
+    console.log('[Dashboard Store] 更新后的 canvasConfig:', state.currentDashboard.canvasConfig)
     state.isDirty = true
   },
 
@@ -90,7 +120,20 @@ const mutations = {
    * 更新全局样式
    */
   UPDATE_GLOBAL_STYLE(state, style) {
-    state.currentDashboard.globalStyle = { ...state.currentDashboard.globalStyle, ...style }
+    // 对于嵌套对象（如 titleStyle），完全替换而不是合并
+    const newGlobalStyle = { ...state.currentDashboard.globalStyle }
+
+    Object.keys(style).forEach(key => {
+      const value = style[key]
+      // 对于嵌套对象，完全替换
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        newGlobalStyle[key] = { ...value }
+      } else {
+        newGlobalStyle[key] = value
+      }
+    })
+
+    state.currentDashboard.globalStyle = newGlobalStyle
     state.isDirty = true
   },
 

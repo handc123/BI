@@ -282,6 +282,7 @@ export default {
         analysis: [
           { type: 'line', name: '折线图', description: '展示趋势变化', icon: 'el-icon-data-line' },
           { type: 'bar', name: '柱状图', description: '对比不同类别', icon: 'el-icon-data-analysis' },
+          { type: 'bar-horizontal', name: '堆积条形图', description: '横向堆积对比', icon: 'el-icon-s-grid' },
           { type: 'pie', name: '饼图', description: '展示占比关系', icon: 'el-icon-pie-chart' },
           { type: 'scatter', name: '散点图', description: '展示分布关系', icon: 'el-icon-s-marketing' },
           { type: 'heatmap', name: '热力图', description: '展示数据密度', icon: 'el-icon-s-platform' },

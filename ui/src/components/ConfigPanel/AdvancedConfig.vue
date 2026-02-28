@@ -173,6 +173,17 @@ export default {
           enabled: false,
           dimensions: []
         },
+        // 穿透配置
+        drillThrough: {
+          enabled: false,
+          configName: '',
+          targetTable: '',
+          fieldMappingsJson: '[\n  {"sourceField":"dimensionValue","sourceType":"click","targetField":"","operator":"eq"}\n]',
+          additionalFiltersJson: '[]',
+          displayFieldsJson: '[]',
+          pageSize: 50,
+          maxRows: 10000
+        },
         // 交互配置
         tooltip: {
           show: true,

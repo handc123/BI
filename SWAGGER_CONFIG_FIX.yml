@@ -1,0 +1,52 @@
+# =============================================
+# Swagger 配置修正示例
+# 文件: iras-admin/src/main/resources/application.yml
+# 修正日期: 2025-02-26
+# =============================================
+
+# Springdoc 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+
+  # API 分组配置
+  group-configs:
+    # 转换质量模块
+    - group: 'conversion'
+      display-name: '转换质量模块'
+      packages-to-scan: com.zjrcu.iras.bi.conversionquality.controller
+      paths-to-match: '/**'
+
+    # 字段质量模块
+    - group: 'field'
+      display-name: '字段质量模块'
+      packages-to-scan: com.zjrcu.iras.bi.fieldquality.controller
+      paths-to-match: '/**'
+
+    # 指标质量模块
+    - group: 'indicator'
+      display-name: '指标质量模块'
+      packages-to-scan: com.zjrcu.iras.bi.indicatorquality.controller
+      paths-to-match: '/**'
+
+    # 全局模块
+    - group: 'overview'
+      display-name: '全局模块'
+      packages-to-scan: com.zjrcu.iras.bi.globaloverview.controller
+      paths-to-match: '/**'
+
+    # ========== 新增：指标管理模块 ==========
+    - group: 'metric'
+      display-name: '指标管理模块'
+      packages-to-scan: com.zjrcu.iras.bi.metric.controller
+      paths-to-match: '/bi/metric/**'
+
+    # BI 平台模块（如果还没有的话）
+    - group: 'platform'
+      display-name: 'BI平台模块'
+      packages-to-scan: com.zjrcu.iras.bi.platform.controller
+      paths-to-match: '/bi/**'

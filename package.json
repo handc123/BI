@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "echarts": "^5.4.3",
+    "mysql": "^2.18.1",
+    "mysql2": "^3.18.1",
+    "vuedraggable": "^2.24.3"
+  }
+}

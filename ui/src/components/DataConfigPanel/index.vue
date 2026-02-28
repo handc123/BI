@@ -293,6 +293,7 @@
 import draggable from 'vuedraggable'
 import { listDataSource } from '@/api/bi/datasource'
 import { listDataset, getDatasetFields } from '@/api/bi/dataset'
+import { listMetricMetadata } from '@/api/bi/metric'
 
 export default {
   name: 'DataConfigPanel',
@@ -326,6 +327,9 @@ export default {
       // 可用的数据源和数据集列表
       datasources: [],
       datasets: [],
+
+      // 指标元数据列表（用于自动匹配）
+      metricMetadataList: [],
 
       // 字段数据
       dimensionFields: [],
@@ -423,7 +427,8 @@ export default {
   },
   mounted() {
     this.loadDatasources()
-    
+    this.loadMetricMetadata()
+
     // 在 mounted 中加载初始配置
     this.$nextTick(() => {
       if (this.initialConfig) {
@@ -463,8 +468,19 @@ export default {
       }
     },
 
+    // 加载指标元数据列表（用于自动匹配）
+    async loadMetricMetadata() {
+      try {
+        const response = await listMetricMetadata({ pageNum: 1, pageSize: 1000 })
+        this.metricMetadataList = response.rows || []
+        console.log('[DataConfigPanel] 加载了', this.metricMetadataList.length, '个指标元数据')
+      } catch (error) {
+        console.error('[DataConfigPanel] 加载指标元数据失败:', error)
+      }
+    },
+
     // 加载数据集列表
-    async loadDatasources() {
+    async loadDatasets() {
       try {
         const response = await listDataSource({})
         this.datasources = response.rows || []
@@ -846,6 +862,21 @@ export default {
         count: this.countField.length > 0 ? { ...this.countField[0] } : null
       }
 
+      // 自动匹配指标元数据
+      const metricMatchResult = this.matchMetricId()
+      if (metricMatchResult) {
+        if (metricMatchResult.isMulti) {
+          // 多指标模式
+          config.metricIds = metricMatchResult.metricIds
+          config.metricList = metricMatchResult.metricList
+          delete config.metricId // 清除单指标ID
+          console.log('[DataConfigPanel] 自动匹配到多指标:', metricMatchResult)
+        } else {
+          // 单指标模式（向后兼容）
+          config.metricId = metricMatchResult
+          console.log('[DataConfigPanel] 自动匹配到单指标ID:', metricMatchResult)
+        }
+      }
 
       // 先发出配置变更事件
       this.$emit('config-change', config)
@@ -854,6 +885,68 @@ export default {
       this.$emit('refresh-chart')
 
       this.$message.success('配置已更新，正在刷新图表...')
+    },
+
+    // 根据拖拽的指标字段自动匹配指标元数据
+    matchMetricId() {
+      if (!this.metrics || this.metrics.length === 0) {
+        return null
+      }
+
+      console.log('[DataConfigPanel] 开始匹配所有指标，共', this.metrics.length, '个')
+
+      // 匹配所有指标
+      const matchedMetrics = []
+      const metricList = []
+
+      for (const metric of this.metrics) {
+        const fieldName = metric.fieldName || metric.name
+        const comment = metric.comment
+
+        console.log('[DataConfigPanel] 尝试匹配指标:', { fieldName, comment })
+
+        let matchedId = null
+
+        // 优先通过comment精确匹配metricName
+        if (comment) {
+          const matchedByName = this.metricMetadataList.find(m => m.metricName === comment)
+          if (matchedByName) {
+            console.log('[DataConfigPanel] 通过comment匹配到指标:', matchedByName)
+            matchedId = matchedByName.id
+          }
+        }
+
+        // 其次通过fieldName匹配metricCode（不转大写了，直接匹配）
+        if (!matchedId && fieldName) {
+          const matchedByCode = this.metricMetadataList.find(m => m.metricCode === fieldName)
+          if (matchedByCode) {
+            console.log('[DataConfigPanel] 通过fieldName匹配到指标:', matchedByCode)
+            matchedId = matchedByCode.id
+          }
+        }
+
+        if (matchedId) {
+          matchedMetrics.push(matchedId)
+          metricList.push({
+            id: matchedId,
+            code: this.metricMetadataList.find(m => m.id === matchedId).metricCode,
+            label: comment || fieldName
+          })
+        }
+      }
+
+      if (matchedMetrics.length > 0) {
+        console.log('[DataConfigPanel] 匹配成功，共', matchedMetrics.length, '个指标:', matchedMetrics, metricList)
+        // 返回所有匹配的指标信息
+        return {
+          isMulti: matchedMetrics.length > 1,
+          metricIds: matchedMetrics,
+          metricList: metricList
+        }
+      }
+
+      console.log('[DataConfigPanel] 未匹配到任何指标元数据')
+      return null
     }
   }
 }

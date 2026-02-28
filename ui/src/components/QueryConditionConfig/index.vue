@@ -212,13 +212,18 @@ export default {
     async handleOpen() {
       // 如果传入了 conditions prop，使用传入的数据
       if (this.conditions && this.conditions.length > 0) {
-        this.localConditions = [...this.conditions]
-        this.localMappings = [...(this.conditionMappings || [])]
+        // 深拷贝条件，避免与父组件共享对象引用
+        this.localConditions = this.conditions.map(c => ({
+          ...c,
+          config: c.config ? { ...c.config } : {},
+          mappings: c.mappings ? c.mappings.map(m => ({ ...m })) : []
+        }))
+        this.localMappings = (this.conditionMappings || []).map(m => ({ ...m }))
 
-        // 更新ID计数器
+        // 更新ID计数器（使用绝对值避免负数ID导致计数器过小）
         if (this.localConditions.length > 0) {
-          const maxId = Math.max(...this.localConditions.map(c => c.id || 0))
-          this.conditionIdCounter = maxId + 1
+          const maxAbsId = Math.max(...this.localConditions.map(c => Math.abs(c.id || 0)))
+          this.conditionIdCounter = maxAbsId + 1
         }
 
         // 如果有条件,默认选中第一个
@@ -257,10 +262,10 @@ export default {
             }
           })
 
-          // 更新ID计数器
+          // 更新ID计数器（使用绝对值避免负数ID导致计数器过小）
           if (this.localConditions.length > 0) {
-            const maxId = Math.max(...this.localConditions.map(c => c.id || 0))
-            this.conditionIdCounter = maxId + 1
+            const maxAbsId = Math.max(...this.localConditions.map(c => Math.abs(c.id || 0)))
+            this.conditionIdCounter = maxAbsId + 1
           }
 
           // 如果有条件,默认选中第一个
@@ -655,6 +660,7 @@ export default {
         'dropdown': ['VARCHAR', 'CHAR', 'INT', 'TINYINT', 'SMALLINT', 'BIGINT'],
         'organization': ['VARCHAR', 'CHAR', 'INT', 'BIGINT'], // 机构选择器，支持字符型和数值型ID
         'dept': ['VARCHAR', 'CHAR', 'INT', 'BIGINT'], // 部门选择器
+        'dept_tree': ['VARCHAR', 'CHAR', 'INT', 'BIGINT', 'TEXT'], // 机构树选择器
         'user': ['VARCHAR', 'CHAR', 'INT', 'BIGINT'] // 用户选择器
       }
 

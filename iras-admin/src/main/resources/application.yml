@@ -138,6 +138,10 @@ springdoc:
       display-name: '全局模块'
       packages-to-scan: com.zjrcu.iras.bi.globaloverview.controller
       paths-to-match: '/**'
+    - group: 'metric'
+      display-name: '指标管理模块'
+      packages-to-scan: com.zjrcu.iras.bi.metric.controller
+      paths-to-match: '/bi/metric/**'
 
 
 

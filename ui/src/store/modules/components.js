@@ -44,27 +44,58 @@ const mutations = {
     if (index !== -1) {
       const component = state.components[index]
 
+      console.log('[Store UPDATE_COMPONENT] 更新组件:', {
+        id,
+        componentId: component.id,
+        componentName: component.name,
+        updates,
+        updateKeys: Object.keys(updates)
+      })
+
       // 对于每个更新属性，使用 Vue.set 确保响应式更新
       Object.keys(updates).forEach(key => {
         const value = updates[key]
 
+        console.log(`[Store UPDATE_COMPONENT] 更新属性 ${key}:`, {
+          oldValue: component[key],
+          newValue: value,
+          valueType: typeof value,
+          isObject: typeof value === 'object' && value !== null
+        })
+
         // 对于嵌套对象，需要特殊处理
         if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-          // 如果是对象，先合并再设置
-          if (component[key] && typeof component[key] === 'object') {
+          // 对于 styleConfig、dataConfig、advancedConfig 等配置对象，完全替换而不是合并
+          // 这样可以确保 Vue 的深度监听能够正确触发
+          if (['styleConfig', 'dataConfig', 'advancedConfig', 'position', 'size'].includes(key)) {
+            component[key] = { ...value }
+            console.log(`[Store UPDATE_COMPONENT] 完全替换 ${key}`)
+          } else if (component[key] && typeof component[key] === 'object') {
+            // 其他对象进行合并
             component[key] = { ...component[key], ...value }
+            console.log(`[Store UPDATE_COMPONENT] 合并 ${key}`)
           } else {
             component[key] = { ...value }
+            console.log(`[Store UPDATE_COMPONENT] 设置 ${key}`)
           }
         } else {
           // 对于基本类型或数组，直接设置
           component[key] = value
+          console.log(`[Store UPDATE_COMPONENT] 直接设置 ${key}`)
         }
       })
 
       // 强制触发数组响应式更新
       // 创建一个新数组引用来确保 Vue 检测到变化
-      state.components.splice(index, 1, { ...component })
+      const newComponent = { ...component }
+      state.components.splice(index, 1, newComponent)
+
+      console.log('[Store UPDATE_COMPONENT] 更新完成:', {
+        componentId: newComponent.id,
+        styleConfig: newComponent.styleConfig
+      })
+    } else {
+      console.warn('[Store UPDATE_COMPONENT] 组件未找到:', id)
     }
   },
 

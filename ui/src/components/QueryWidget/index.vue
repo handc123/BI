@@ -120,24 +120,26 @@
           </el-select>
         </div>
 
-        <!-- 数值范围 -->
-        <div v-else-if="condition.conditionType === 'range'" class="condition-input range-input">
-          <el-input-number
-            v-model="conditionValues[condition.id].min"
-            :placeholder="'最小值'"
-            :min="getRangeMin(condition)"
-            :max="getRangeMax(condition)"
+        <!-- 日期范围选择器 -->
+        <div v-else-if="condition.conditionType === 'range'" class="condition-input range-date-input">
+          <el-date-picker
+            v-model="conditionValues[condition.id + '_start']"
+            type="date"
+            :format="getRangeDateFormat(condition)"
+            :value-format="getRangeDateFormat(condition)"
+            placeholder="起始日期"
+            :clearable="condition.isRequired !== '1'"
             @change="handleConditionChange(condition)"
-            controls-position="right"
           />
-          <span class="range-separator">-</span>
-          <el-input-number
-            v-model="conditionValues[condition.id].max"
-            :placeholder="'最大值'"
-            :min="getRangeMin(condition)"
-            :max="getRangeMax(condition)"
+          <span class="range-separator">至</span>
+          <el-date-picker
+            v-model="conditionValues[condition.id + '_end']"
+            type="date"
+            :format="getRangeDateFormat(condition)"
+            :value-format="getRangeDateFormat(condition)"
+            placeholder="终止日期"
+            :clearable="condition.isRequired !== '1'"
             @change="handleConditionChange(condition)"
-            controls-position="right"
           />
         </div>
       </div>
@@ -252,6 +254,18 @@ export default {
           this.$set(this.conditionValues, condition.id, this.getDefaultValue(condition))
         }
 
+        // 日期范围类型需要初始化起始和终止值
+        if (condition.conditionType === 'range') {
+          const startKey = condition.id + '_start'
+          const endKey = condition.id + '_end'
+          if (!(startKey in this.conditionValues)) {
+            this.$set(this.conditionValues, startKey, null)
+          }
+          if (!(endKey in this.conditionValues)) {
+            this.$set(this.conditionValues, endKey, null)
+          }
+        }
+
         // 加载选项
         if (this.needsOptions(condition)) {
           this.loadOptions(condition)
@@ -272,13 +286,13 @@ export default {
      */
     getDefaultValue(condition) {
       // 对于时间类型，不使用defaultValue（会根据配置动态计算）
-      if (condition.conditionType === 'time' || condition.conditionType === 'range') {
+      if (condition.conditionType === 'time') {
         return null
       }
 
-      // 对于数值范围类型，返回对象
+      // 对于日期范围类型，返回null（起始/终止分开存储）
       if (condition.conditionType === 'range') {
-        return { min: null, max: null }
+        return null
       }
 
       // 对于多选类型，返回数组
@@ -474,6 +488,11 @@ export default {
     handleReset() {
       this.conditions.forEach(condition => {
         this.$set(this.conditionValues, condition.id, this.getDefaultValue(condition))
+        // 日期范围类型需要重置起始和终止值
+        if (condition.conditionType === 'range') {
+          this.$set(this.conditionValues, condition.id + '_start', null)
+          this.$set(this.conditionValues, condition.id + '_end', null)
+        }
       })
       this.$emit('reset')
     },
@@ -518,6 +537,14 @@ export default {
     getRangeMax(condition) {
       const config = this.parseConfig(condition)
       return config.max !== undefined ? config.max : Infinity
+    },
+
+    /**
+     * 获取日期范围格式
+     */
+    getRangeDateFormat(condition) {
+      const config = this.parseConfig(condition)
+      return config.format || 'yyyy-MM-dd'
     },
 
     /**
@@ -623,7 +650,7 @@ export default {
 <style scoped lang="scss">
 .query-widget {
   width: 100%;
-  padding: 8px 12px;
+  padding: 0;
   background: #fff;
   border-radius: 4px;
   box-sizing: border-box;
@@ -631,15 +658,10 @@ export default {
 
 .query-conditions {
   display: flex;
-  gap: var(--spacing, 10px);
-  align-items: center;
+  gap: 16px 24px;
+  align-items: flex-start;
   flex-wrap: wrap;
-
-  &.layout-horizontal {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-  }
+  padding: 12px 16px;
 
   &.layout-vertical {
     flex-direction: column;
@@ -651,7 +673,9 @@ export default {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 36px;
 
   &.is-required {
     .condition-label {
@@ -660,16 +684,16 @@ export default {
   }
 
   &.query-actions {
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
+    margin-left: auto;
+    gap: 8px;
   }
 }
 
 .condition-label {
-  font-size: 13px;
+  font-size: 14px;
   color: #606266;
   white-space: nowrap;
+  line-height: 36px;
 
   .required-mark {
     color: #f56c6c;
@@ -678,28 +702,19 @@ export default {
 }
 
 .condition-input {
-  min-width: 160px;
-
   &.dept-tree-input {
-    // 确保机构树选择器有足够的空间显示
-    flex: 1;
     min-width: 200px;
-    position: relative;
-    z-index: 1;
   }
 
-  &.range-input {
-    display: flex;
+  &.range-date-input {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-
-    .el-input-number {
-      flex: 1;
-      min-width: 100px;
-    }
+    gap: 6px;
 
     .range-separator {
       color: #909399;
+      font-size: 13px;
+      flex-shrink: 0;
     }
   }
 }
@@ -715,27 +730,27 @@ export default {
   }
 }
 
-// Element UI 组件尺寸调整
+// Element UI 组件尺寸统一
 .query-widget {
-  ::v-deep .el-date-picker,
-  ::v-deep .el-input-number,
+  ::v-deep .el-date-editor,
   ::v-deep .el-input,
   ::v-deep .el-select {
-    width: 160px;
+    width: 180px !important;
   }
 
-  ::v-deep .el-tree-select {
-    width: 200px;
+  ::v-deep .el-input__inner {
+    height: 36px;
+    line-height: 36px;
   }
 
-  ::v-deep .el-input__inner,
-  ::v-deep .el-input-number__increase,
-  ::v-deep .el-input-number__decrease {
-    height: 28px;
+  ::v-deep .el-input__icon {
+    line-height: 36px;
   }
 
-  ::v-deep .el-date-picker .el-input__inner {
-    padding: 0 10px;
+  ::v-deep .el-button {
+    height: 36px;
+    padding: 0 20px;
+    line-height: 1;
   }
 }
 </style>

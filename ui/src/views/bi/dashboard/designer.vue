@@ -416,7 +416,20 @@ export default {
           height: 1080,
           gridSize: 10,
           margin: { top: 20, right: 20, bottom: 20, left: 20 },
-          background: { type: 'color', value: '#ffffff', opacity: 1 }
+          background: { type: 'color', value: '#ffffff', opacity: 1 },
+          // 卡片样式
+          card: { enabled: true, shadowType: 'default', shadowColor: 'rgba(0, 0, 0, 0.1)', borderRadius: 8 },
+          // 布局配置
+          layout: { type: 'grid', columns: 2, gap: 16 },
+          // 网格配置
+          gridColor: '#e0e0e0',
+          columnDividerColor: '#409eff',
+          showGrid: true,
+          // 响应式配置
+          responsive: {
+            enabled: false,
+            breakpoints: { sm: '768px', md: '1024px', lg: '1520px' }
+          }
         },
         globalStyle: {
           colorScheme: ['#5470c6', '#91cc75', '#fac858'],
@@ -597,6 +610,13 @@ export default {
     },
 
     handleConfigChange(configChange) {
+      console.log('[Designer] handleConfigChange 被调用:', {
+        type: configChange.type,
+        configTargetType: this.configTargetType,
+        selectedComponentId: this.selectedComponentId,
+        configKeys: configChange.config ? Object.keys(configChange.config) : []
+      })
+
       if (this.configTargetType === 'component') {
         const updates = {}
 
@@ -604,14 +624,26 @@ export default {
           updates.dataConfig = configChange.config
         } else if (configChange.type === 'style') {
           updates.styleConfig = configChange.config
+          console.log('[Designer] 更新 styleConfig:', configChange.config)
         } else if (configChange.type === 'advanced') {
           updates.advancedConfig = configChange.config
         }
+
+        console.log('[Designer] 调用 updateComponent:', {
+          id: this.selectedComponentId,
+          updates
+        })
 
         this.updateComponent({
           id: this.selectedComponentId,
           updates: updates
         })
+
+        console.log('[Designer] 组件列表更新后:', this.components.map(c => ({
+          id: c.id,
+          name: c.name,
+          styleConfigKeys: c.styleConfig ? Object.keys(c.styleConfig) : []
+        })))
       } else {
         if (configChange.type === 'dashboard') {
           const config = configChange.config
@@ -622,7 +654,53 @@ export default {
             this.updateGlobalStyle(config.globalStyle)
           }
         } else if (configChange.type === 'style') {
-          this.updateGlobalStyle(configChange.config)
+          // 仪表板样式变化：从 styleConfig 提取相关属性更新到 canvasConfig
+          const styleConfig = configChange.config
+          const canvasConfigUpdates = {}
+
+          // 将 styleConfig 中的仪表板样式属性提取到 canvasConfig
+          if (styleConfig.background !== undefined) {
+            canvasConfigUpdates.background = styleConfig.background
+          }
+          if (styleConfig.card !== undefined) {
+            canvasConfigUpdates.card = styleConfig.card
+          }
+          if (styleConfig.margin !== undefined) {
+            canvasConfigUpdates.margin = styleConfig.margin
+          }
+          if (styleConfig.gridSize !== undefined) {
+            canvasConfigUpdates.gridSize = styleConfig.gridSize
+          }
+          if (styleConfig.responsive !== undefined) {
+            canvasConfigUpdates.responsive = styleConfig.responsive
+          }
+
+          // 同时更新全局样式（颜色方案、字体等）
+          const globalStyleUpdates = {}
+          if (styleConfig.colors) {
+            globalStyleUpdates.colorScheme = styleConfig.colors
+          }
+          if (styleConfig.titleColor) {
+            globalStyleUpdates.titleStyle = {
+              ...this.currentDashboard.globalStyle.titleStyle,
+              color: styleConfig.titleColor
+            }
+          }
+          if (styleConfig.fontFamily) {
+            globalStyleUpdates.fontFamily = styleConfig.fontFamily
+          }
+
+          // 更新 canvasConfig
+          if (Object.keys(canvasConfigUpdates).length > 0) {
+            console.log('[Designer] 更新仪表板 canvasConfig:', canvasConfigUpdates)
+            this.updateCanvasConfig(canvasConfigUpdates)
+          }
+
+          // 更新 globalStyle
+          if (Object.keys(globalStyleUpdates).length > 0) {
+            console.log('[Designer] 更新仪表板 globalStyle:', globalStyleUpdates)
+            this.updateGlobalStyle(globalStyleUpdates)
+          }
         }
       }
       this.recordState()
@@ -753,28 +831,38 @@ export default {
           dashboard: dashboardData,
           components: components,
           queryConditions: this.queryConditions.map(cond => {
-            const isTempId = typeof cond.id === 'string' && (cond.id.startsWith('new_') || cond.id.startsWith('cond_'))
+            // 检查是否为临时ID（字符串类型以 'new_' 或 'cond_' 开头 或 数字类型负数）
+            const isTempId = (typeof cond.id === 'string' && (cond.id.startsWith('new_') || cond.id.startsWith('cond_'))) ||
+                             (typeof cond.id === 'number' && cond.id < 0)
+
             return {
               ...cond,
               id: isTempId ? null : cond.id,
-              tempId: isTempId ? cond.id : null,
+              tempId: isTempId ? String(cond.id) : null,  // 统一转为字符串
               config: typeof cond.config === 'string'
                 ? cond.config
                 : JSON.stringify(cond.config || {})
             }
           }),
           conditionMappings: this.conditionMappings.map(m => {
-            const isTempCompId = typeof m.componentId === 'string' && m.componentId.startsWith('comp_')
-            const isTempCondId = typeof m.conditionId === 'string' && (String(m.conditionId).startsWith('new') || String(m.conditionId).startsWith('cond'))
+            // 检查组件ID是否为临时ID（字符串类型以 'comp_' 开头 或 数字类型负数）
+            const isTempCompId = (typeof m.componentId === 'string' && m.componentId.startsWith('comp_')) ||
+                                 (typeof m.componentId === 'number' && m.componentId < 0)
+
+            // 检查条件ID是否为临时ID（字符串类型以 'new_' 或 'cond_' 开头 或 数字类型负数）
+            const condIdStr = String(m.conditionId || '')
+            const isTempCondId = (typeof m.conditionId === 'string' && (condIdStr.startsWith('new_') || condIdStr.startsWith('cond_'))) ||
+                                 (typeof m.conditionId === 'number' && m.conditionId < 0)
+
             const isTempMappingId = typeof m.id === 'string' && m.id.startsWith('mapping_')
 
             return {
               ...m,
               id: isTempMappingId ? null : m.id,
               componentId: isTempCompId ? null : m.componentId,
-              tempComponentId: isTempCompId ? m.componentId : null,
+              tempComponentId: isTempCompId ? String(m.componentId) : null,  // 统一转为字符串
               conditionId: isTempCondId ? null : m.conditionId,
-              tempConditionId: isTempCondId ? m.conditionId : null
+              tempConditionId: isTempCondId ? String(m.conditionId) : null  // 统一转为字符串
             }
           })
         }
@@ -783,7 +871,7 @@ export default {
 
         if (response.code === 200) {
           this.hasUnsavedChanges = false
-          this.$message.success('保存成功')
+          this.$message.success('保存成功，正在返回仪表板列表...')
 
           if (!this.dashboardId && response.data && response.data.id) {
             this.dashboardId = response.data.id
@@ -792,6 +880,11 @@ export default {
               id: response.data.id
             })
           }
+
+          // 延迟跳转，让用户看到成功提示
+          setTimeout(() => {
+            this.$router.push('/bi/dashboard')
+          }, 500)
 
           return Promise.resolve()
         } else {

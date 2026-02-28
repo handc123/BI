@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试页面</title>
+</head>
+<body>
+    <h1>前端文件测试</h1>
+    <p>如果你能看到这个页面，说明静态文件服务是正常的。</p>
+    <p>现在请访问 <a href="http://localhost:82/" target="_blank">http://localhost:82/</a></p>
+    <p>如果还是显示旧的页面，请按 F12 打开开发者工具，在 Console 标签页中输入：</p>
+    <pre>console.log('测试:', document.querySelector('.metric-detail-dialog'))
+console.log('是否有 multi-metric-dialog 类:', document.querySelector('.multi-metric-dialog'))</pre>
+    <p>如果返回 null，说明代码没有更新。</p>
+    <hr>
+    <h3>检查清单：</h3>
+    <ol>
+        <li>确认访问的是 <strong>http://localhost:82/</strong>（不是81）</li>
+        <li>按 F12 打开开发者工具</li>
+        <li>勾选 "Disable cache"（禁用缓存）</li>
+        <li>右键点击刷新按钮，选择 "Empty Cache and Hard Reload"</li>
+        <li>或者在 Console 中输入：location.reload(true)</li>
+    </ol>
+</body>
+</html>

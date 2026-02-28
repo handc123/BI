@@ -11,6 +11,14 @@
  * @returns {Object} 合并后的查询参数
  */
 export function injectQueryParams(component, conditionMappings, conditionValues) {
+  console.log('[injectQueryParams] 输入参数:', {
+    componentId: component.id,
+    componentName: component.name,
+    conditionMappingsCount: conditionMappings.length,
+    conditionValuesKeys: Object.keys(conditionValues),
+    conditionValues
+  })
+
   const params = {}
 
   // 获取该组件的所有映射
@@ -18,11 +26,44 @@ export function injectQueryParams(component, conditionMappings, conditionValues)
     m => m.componentId === component.id
   )
 
+  console.log('[injectQueryParams] 该组件的映射数量:', componentMappings.length)
+  console.log('[injectQueryParams] 该组件的映射:', componentMappings)
+
   // 注入映射的条件值
   componentMappings.forEach(mapping => {
-    const conditionValue = conditionValues[mapping.conditionId]
-    if (conditionValue !== undefined && conditionValue !== null) {
-      params[mapping.fieldName] = conditionValue
+    const conditionId = mapping.conditionId
+
+    // 检查是否有日期范围类型的值（分开存储 _start 和 _end）
+    const startKey = conditionId + '_start'
+    const endKey = conditionId + '_end'
+    const hasRange = (startKey in conditionValues) && (endKey in conditionValues)
+
+    console.log('[injectQueryParams] 处理映射:', {
+      conditionId,
+      fieldName: mapping.fieldName,
+      hasRange,
+      startKey,
+      endKey,
+      startValue: conditionValues[startKey],
+      endValue: conditionValues[endKey],
+      directValue: conditionValues[conditionId]
+    })
+
+    if (hasRange) {
+      // 日期范围类型：合并成一个数组
+      const startValue = conditionValues[startKey]
+      const endValue = conditionValues[endKey]
+      if (startValue && endValue) {
+        params[mapping.fieldName] = [startValue, endValue]
+        console.log('[injectQueryParams] 设置日期范围值:', mapping.fieldName, params[mapping.fieldName])
+      }
+    } else {
+      // 普通类型：直接获取值
+      const conditionValue = conditionValues[conditionId]
+      if (conditionValue !== undefined && conditionValue !== null) {
+        params[mapping.fieldName] = conditionValue
+        console.log('[injectQueryParams] 设置普通值:', mapping.fieldName, conditionValue)
+      }
     }
   })
 
@@ -35,6 +76,8 @@ export function injectQueryParams(component, conditionMappings, conditionValues)
       }
     })
   }
+
+  console.log('[injectQueryParams] 最终参数:', params)
 
   return params
 }
@@ -100,7 +143,14 @@ export function validateQueryParams(component, params, queryConditions, conditio
     const condition = queryConditions.find(c => c.id === mapping.conditionId)
     if (condition && condition.isRequired === '1') {
       const value = params[mapping.fieldName]
-      if (value === undefined || value === null || value === '') {
+
+      // 检查值是否为空（包括数组空值的情况）
+      const isEmpty = value === undefined ||
+                      value === null ||
+                      value === '' ||
+                      (Array.isArray(value) && value.length === 0)
+
+      if (isEmpty) {
         missing.push({
           conditionId: condition.id,
           conditionName: condition.conditionName,

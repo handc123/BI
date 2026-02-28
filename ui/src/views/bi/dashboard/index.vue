@@ -246,6 +246,20 @@ export default {
   created() {
     this.getList()
   },
+  activated() {
+    // 如果使用了 keep-alive，在组件激活时刷新列表
+    this.getList()
+  },
+  watch: {
+    // 监听路由变化，当从设计器返回时刷新列表
+    '$route'(to, from) {
+      // 如果是从设计器页面返回，刷新列表
+      if (from.path?.includes('/designer') && to.path === '/bi/dashboard') {
+        console.log('[DashboardList] 从设计器返回，刷新列表')
+        this.getList()
+      }
+    }
+  },
   methods: {
     getList() {
       this.loading = true

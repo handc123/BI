@@ -43,51 +43,55 @@
           />
         </div>
 
-        <!-- 渲染所有组件 -->
-        <div
-          v-for="component in components"
-          :key="component.id"
-          class="view-component"
-          :style="getComponentStyle(component)"
-        >
-          <!-- 图表组件 -->
-          <chart-widget
-            v-if="component.type === 'chart'"
-            :config="{
-              id: component.id,
-              dataConfig: component.dataConfig,
-              styleConfig: component.styleConfig,
-              advancedConfig: component.advancedConfig
-            }"
-            :query-params="queryParams"
-            :condition-mappings="getComponentMappings(component.id)"
-            :query-conditions="queryConditions"
-            :is-edit-mode="false"
-          />
+        <!-- 渲染所有组件 - 网格布局，一行两个 -->
+        <div class="view-grid">
+          <div
+            v-for="component in chartComponents"
+            :key="component.id"
+            class="view-component"
+          >
+            <!-- 图表组件 -->
+            <chart-widget
+              v-if="component.type === 'chart'"
+              :config="{
+                id: component.id,
+                dataConfig: component.dataConfig,
+                styleConfig: component.styleConfig,
+                advancedConfig: component.advancedConfig
+              }"
+              :query-params="queryParams"
+              :condition-mappings="getComponentMappings(component.id)"
+              :query-conditions="queryConditions"
+              :is-edit-mode="false"
+              @metric-click="handleMetricClick"
+              @multi-metric-click="handleMultiMetricClick"
+            />
 
-          <!-- 查询组件(设计器添加的) -->
-          <query-widget
-            v-else-if="component.type === 'query'"
-            :component-id="component.id"
-            :config="component.dataConfig"
-            @query="handleQuery"
-          />
-
-          <!-- 其他组件类型 -->
-          <div v-else class="unsupported-component">
-            <i class="el-icon-warning"></i>
-            <p>不支持的组件类型: {{ component.type }}</p>
+            <!-- 其他组件类型 -->
+            <div v-else class="unsupported-component">
+              <i class="el-icon-warning"></i>
+              <p>不支持的组件类型: {{ component.type }}</p>
+            </div>
           </div>
         </div>
 
         <!-- 空状态 -->
         <el-empty
-          v-if="!loading && components.length === 0"
+          v-if="!loading && chartComponents.length === 0"
           description="仪表板暂无内容"
           :image-size="200"
         />
       </div>
     </div>
+
+    <!-- 指标详情对话框 -->
+    <metric-detail-dialog
+      :visible.sync="metricDialogVisible"
+      :metric-id="selectedMetricId"
+      :metric-ids="selectedMetricIds"
+      :metric-list="selectedMetricList"
+      @close="metricDialogVisible = false"
+    />
   </div>
 </template>
 
@@ -95,16 +99,23 @@
 import { getDashboardConfig } from '@/api/bi/dashboard'
 import ChartWidget from '@/components/ChartWidget'
 import QueryWidget from '@/components/QueryWidget'
+import MetricDetailDialog from '@/components/MetricDetailDialog'
 
 export default {
   name: 'DashboardView',
   components: {
     ChartWidget,
-    QueryWidget
+    QueryWidget,
+    MetricDetailDialog
   },
   data() {
     return {
       loading: false,
+      // 指标详情对话框
+      metricDialogVisible: false,
+      selectedMetricId: null,
+      selectedMetricIds: [],
+      selectedMetricList: [],
       currentDashboard: {
         id: null,
         name: '仪表板查看',
@@ -112,7 +123,22 @@ export default {
         canvasConfig: {
           width: 1520,
           height: 1080,
-          background: { type: 'color', value: '#f0f2f5', opacity: 1 }
+          gridSize: 10,
+          margin: { top: 20, right: 20, bottom: 20, left: 20 },
+          background: { type: 'color', value: '#f0f2f5', opacity: 1 },
+          // 卡片样式
+          card: { enabled: true, shadowType: 'default', shadowColor: 'rgba(0, 0, 0, 0.1)', borderRadius: 8 },
+          // 布局配置
+          layout: { type: 'grid', columns: 2, gap: 16 },
+          // 网格配置
+          gridColor: '#e0e0e0',
+          columnDividerColor: '#409eff',
+          showGrid: true,
+          // 响应式配置
+          responsive: {
+            enabled: false,
+            breakpoints: { sm: '768px', md: '1024px', lg: '1520px' }
+          }
         },
         globalStyle: {
           colorScheme: ['#5470c6', '#91cc75', '#fac858'],
@@ -129,6 +155,10 @@ export default {
   computed: {
     dashboardId() {
       return this.$route.params.id
+    },
+    // 过滤掉 query 类型组件，避免与顶部查询条件栏重复
+    chartComponents() {
+      return this.components.filter(c => c.type !== 'query')
     }
   },
   created() {
@@ -146,6 +176,8 @@ export default {
         const response = await getDashboardConfig(id)
         const config = response.data
 
+        console.log('[DashboardView] 从后端获取的完整配置:', config)
+
         // 设置仪表板基本信息
         this.currentDashboard = {
           id: config.dashboard.id,
@@ -154,7 +186,22 @@ export default {
           canvasConfig: this.parseJSON(config.dashboard.canvasConfig, {
             width: 1520,
             height: 1080,
-            background: { type: 'color', value: '#f0f2f5', opacity: 1 }
+            gridSize: 10,
+            margin: { top: 20, right: 20, bottom: 20, left: 20 },
+            background: { type: 'color', value: '#f0f2f5', opacity: 1 },
+            // 卡片样式
+            card: { enabled: true, shadowType: 'default', shadowColor: 'rgba(0, 0, 0, 0.1)', borderRadius: 8 },
+            // 布局配置
+            layout: { type: 'grid', columns: 2, gap: 16 },
+            // 网格配置
+            gridColor: '#e0e0e0',
+            columnDividerColor: '#409eff',
+            showGrid: true,
+            // 响应式配置
+            responsive: {
+              enabled: false,
+              breakpoints: { sm: '768px', md: '1024px', lg: '1520px' }
+            }
           }),
           globalStyle: this.parseJSON(config.dashboard.globalStyle, {
             colorScheme: ['#5470c6', '#91cc75', '#fac858'],
@@ -236,8 +283,15 @@ export default {
     // 处理查询
     handleQuery(queryData) {
       console.log('[DashboardView] 查询参数:', queryData)
+      console.log('[DashboardView] 条件映射:', this.conditionMappings)
+      console.log('[DashboardView] 查询条件:', this.queryConditions)
+
       // 更新查询参数
       this.queryParams = { ...queryData }
+
+      console.log('[DashboardView] 更新后的 queryParams:', this.queryParams)
+      console.log('[DashboardView] queryParams keys:', Object.keys(this.queryParams))
+
       this.$message.success('查询条件已更新，正在刷新图表...')
     },
 
@@ -246,6 +300,34 @@ export default {
       console.log('[DashboardView] 重置查询')
       this.initializeQueryParams()
       this.$message.info('查询已重置')
+    },
+
+    // 处理指标点击事件
+    handleMetricClick(metricId) {
+      console.log('[DashboardView] 点击指标:', metricId)
+      if (metricId) {
+        this.selectedMetricId = metricId
+        this.selectedMetricIds = [] // 清空多指标列表
+        this.selectedMetricList = []
+        this.metricDialogVisible = true
+      }
+    },
+
+    // 处理多指标点击事件
+    handleMultiMetricClick(metricIds, metricList) {
+      console.log('[DashboardView] ===== 收到 multi-metric-click 事件 =====')
+      console.log('[DashboardView] metricIds:', metricIds)
+      console.log('[DashboardView] metricList:', metricList)
+      console.log('[DashboardView] metricIds.length:', metricIds ? metricIds.length : 'null')
+      if (metricIds && metricIds.length > 0) {
+        this.selectedMetricId = null // 清空单指标ID
+        this.selectedMetricIds = metricIds
+        this.selectedMetricList = metricList
+        this.metricDialogVisible = true
+        console.log('[DashboardView] 已打开多指标对话框，visible = true')
+      } else {
+        console.log('[DashboardView] metricIds 为空或长度为0，不打开对话框')
+      }
     },
 
     // 获取组件的条件映射
@@ -257,37 +339,54 @@ export default {
     getCanvasStyle() {
       const config = this.currentDashboard.canvasConfig
       const background = config.background || {}
-      
+      const card = config.card || {}
+
       let backgroundStyle = ''
       if (background.type === 'color') {
         backgroundStyle = background.value || '#f0f2f5'
       } else if (background.type === 'gradient') {
-        backgroundStyle = `linear-gradient(${background.direction || '180deg'}, ${background.startColor || '#fff'}, ${background.endColor || '#f0f2f5'})`
+        const gradientType = background.gradientType || 'linear'
+        const startColor = background.startColor || '#ffffff'
+        const endColor = background.endColor || '#f0f2f5'
+
+        if (gradientType === 'linear') {
+          const direction = background.direction || 135
+          backgroundStyle = `linear-gradient(${direction}deg, ${startColor}, ${endColor})`
+        } else if (gradientType === 'radial') {
+          const position = background.position || 'center'
+          backgroundStyle = `radial-gradient(circle at ${position}, ${startColor}, ${endColor})`
+        }
+      } else if (background.type === 'image') {
+        return {
+          width: '100%',
+          minHeight: config.height + 'px',
+          backgroundImage: `url(${background.value})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          padding: '20px'
+        }
       }
 
-      return {
-        width: config.width + 'px',
+      const style = {
+        width: '100%',
         minHeight: config.height + 'px',
         background: backgroundStyle,
-        position: 'relative'
+        padding: '20px'
       }
-    },
 
-    // 获取组件样式
-    getComponentStyle(component) {
-      return {
-        position: 'absolute',
-        left: component.position.x + 'px',
-        top: component.position.y + 'px',
-        width: component.size.width + 'px',
-        height: component.size.height + 'px',
-        zIndex: component.zIndex,
-        background: '#ffffff',
-        border: '1px solid #e4e7ed',
-        borderRadius: '4px',
-        overflow: 'hidden',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      // 应用卡片样式（如果启用）
+      if (card.enabled) {
+        style.borderRadius = `${card.borderRadius || 8}px`
+        if (card.shadowType === 'light') {
+          style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)'
+        } else if (card.shadowType === 'default') {
+          style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.12)'
+        } else if (card.shadowType === 'strong') {
+          style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.18)'
+        }
       }
+
+      return style
     },
 
     // 工具方法: 解析JSON
@@ -352,18 +451,28 @@ export default {
   box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
 
+.view-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
 .query-conditions-bar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
   background: #ffffff;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 20px;
-  padding: 16px;
+  border: 1px solid #e4e7ed;
+  margin-bottom: 16px;
+  border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  overflow: visible;
 }
 
 .view-component {
+  height: 400px;
+  background: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   transition: box-shadow 0.3s ease;
 
   &:hover {

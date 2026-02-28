@@ -24,19 +24,81 @@
     </div>
 
     <!-- 编辑模式占位符 -->
-    <div v-show="isEditMode && !chartData && !chartInstance" class="edit-mode-placeholder">
+    <div v-show="isEditMode && !chartData && !chartInstance && !isMetricCard && !isTable" class="edit-mode-placeholder">
       <i class="el-icon-s-data"></i>
       <p>{{ config.name || '图表组件' }}</p>
       <p class="placeholder-hint">点击工具栏的"刷新"按钮加载数据</p>
     </div>
 
-    <!-- 图表容器 -->
+    <!-- 指标卡容器（自定义渲染） -->
     <div
-      v-show="!loading && !error"
+      v-if="isMetricCard && !loading && !error"
+      class="metric-card-container"
+      :class="{ 'with-toolbar': isEditMode, 'clickable': hasClickableContent && !isEditMode }"
+      :style="getMetricCardStyle()"
+      @click="handleChartClick"
+    >
+      <div v-if="metricCardConfig" class="metric-card-content">
+        <div v-if="metricCardConfig.icon" class="metric-card-icon" :style="{ color: metricCardConfig.iconColor }">
+          <i :class="metricCardConfig.icon"></i>
+        </div>
+        <div class="metric-card-value" :style="{ color: metricCardConfig.valueColor, fontSize: metricCardConfig.valueFontSize + 'px' }">
+          {{ formatMetricValue(metricCardConfig.value) }}
+          <span v-if="metricCardConfig.unit" class="metric-unit">{{ metricCardConfig.unit }}</span>
+        </div>
+        <div class="metric-card-title" :style="{ color: metricCardConfig.titleColor, fontSize: metricCardConfig.titleFontSize + 'px' }">
+          {{ metricCardConfig.title || config.name || '指标' }}
+        </div>
+        <div v-if="metricCardConfig.showTrend && metricCardConfig.trend !== undefined" class="metric-card-trend" :class="getTrendClass(metricCardConfig.trend)">
+          <i :class="getTrendIcon(metricCardConfig.trend)"></i>
+          <span>{{ Math.abs(metricCardConfig.trend) }}%</span>
+          <span v-if="metricCardConfig.trendLabel">{{ metricCardConfig.trendLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 表格容器（自定义渲染） -->
+    <div
+      v-if="isTable && !loading && !error"
+      class="table-container"
+      :class="{ 'with-toolbar': isEditMode, 'clickable': hasClickableContent && !isEditMode }"
+      :style="{ height: isEditMode ? 'calc(100% - 40px)' : '100%' }"
+      @click="handleChartClick"
+    >
+      <el-table
+        v-if="tableConfig && tableConfig.data && tableConfig.data.length > 0"
+        :data="tableConfig.data"
+        :stripe="tableConfig.stripe"
+        :border="tableConfig.border"
+        :size="tableConfig.size"
+        :show-header="tableConfig.showHeader"
+        :highlight-current-row="tableConfig.highlightCurrentRow"
+        :max-height="tableConfig.maxHeight"
+        style="width: 100%; height: 100%"
+      >
+        <el-table-column
+          v-for="(column, index) in getTableColumns(tableConfig.data)"
+          :key="index"
+          :prop="column.key"
+          :label="column.label"
+          :min-width="100"
+        />
+      </el-table>
+      <el-empty
+        v-else
+        description="暂无数据"
+        :image-size="100"
+      />
+    </div>
+
+    <!-- 图表容器（ECharts） -->
+    <div
+      v-show="!isMetricCard && !isTable && !loading && !error"
       ref="chartContainer"
       class="chart-container"
-      :class="{ 'with-toolbar': isEditMode }"
+      :class="{ 'with-toolbar': isEditMode, 'clickable': hasClickableContent && !isEditMode }"
       :style="{ height: isEditMode ? 'calc(100% - 40px)' : '100%' }"
+      @click="handleChartClick"
     ></div>
   </div>
 </template>
@@ -46,6 +108,7 @@ import * as echarts from 'echarts'
 import { executeQuery } from '@/api/bi/query'
 import { injectQueryParams, validateQueryParams, cleanEmptyParams } from '@/utils/queryParamsInjector'
 import { buildChartOption } from '@/utils/chartAdapters'
+import { listMetricMetadata } from '@/api/bi/metric'
 
 export default {
   name: 'ChartWidget',
@@ -89,18 +152,54 @@ export default {
       error: null,
       refreshTimer: null,
       lastQueryParams: null,
-      resizeObserver: null  // ResizeObserver 实例
+      resizeObserver: null,  // ResizeObserver 实例
+      metricCardConfig: null,  // 指标卡配置
+      tableConfig: null  // 表格配置
     }
   },
   computed: {
-    // 合并后的查询参数
+    // 判断是否为指标卡类型
+    isMetricCard() {
+      const chartType = this.config.styleConfig?.chartType
+      return ['card', 'metricCard', 'kpi'].includes(chartType)
+    },
+    // 判断是否为表格类型
+    isTable() {
+      const chartType = this.config.styleConfig?.chartType
+      return ['table', 'summary-table', 'pivot-table'].includes(chartType)
+    },
+    // 是否有关联的指标ID
+    hasMetricId() {
+      return !!(this.config.dataConfig && this.config.dataConfig.metricId)
+    },
+
+    // 是否有可点击的内容（有关联指标或者有数据字段）
+    hasClickableContent() {
+      return this.hasMetricId || (
+        this.config.dataConfig &&
+        this.config.dataConfig.metrics &&
+        this.config.dataConfig.metrics.length > 0
+      )
+    },
+
+    //合并后的查询参数
     mergedQueryParams() {
+      console.log('[ChartWidget]计算 mergedQueryParams:', {
+        componentId: this.config.id,
+        componentName: this.config.name,
+        conditionMappings: this.conditionMappings,
+        queryParams: this.queryParams,
+        config: this.config
+      })
+          
       // 注入查询条件参数
       const injectedParams = injectQueryParams(
         this.config,
         this.conditionMappings,
         this.queryParams
       )
+          
+      console.log('[ChartWidget] 注入后的参数:', injectedParams)
 
       // 合并图表级过滤器
       const chartFilters = {}
@@ -126,19 +225,17 @@ export default {
     }
   },
   watch: {
-    // 监听查询参数变化 - 注释掉自动刷新逻辑
-    // 只有点击查询按钮时才刷新图表
-    /*
+    //监听查询参数变化 - 自动刷新图表
     mergedQueryParams: {
       handler(newParams, oldParams) {
-        console.log('[ChartWidget] mergedQueryParams 变化:', {
+        console.log('[ChartWidget] mergedQueryParams变化:', {
           componentId: this.config.id,
           componentName: this.config.name,
           oldParams,
           newParams
         })
-
-        // 比较参数是否真的变化了
+  
+        //比较参数是否真的变化了
         if (JSON.stringify(newParams) !== JSON.stringify(oldParams)) {
           console.log('[ChartWidget] 参数已变化，触发刷新')
           this.refreshChart()
@@ -148,7 +245,6 @@ export default {
       },
       deep: true
     },
-    */
 
     // 监听配置变化（仅在非编辑模式下）
     'config.dataConfig': {
@@ -194,17 +290,30 @@ export default {
       }
     },
 
-    // 监听样式配置变化 - 暂时禁用避免循环
-    /*
+    // 监听样式配置变化 - 实时更新图表样式
     'config.styleConfig': {
-      handler() {
-        if (this.chartInstance && this.chartData) {
-          this.updateChartOption()
+      handler(newVal, oldVal) {
+        console.log('[ChartWidget] styleConfig 变化:', {
+          componentId: this.config.id,
+          componentName: this.config.name,
+          hasNewVal: !!newVal,
+          hasOldVal: !!oldVal,
+          hasChartInstance: !!this.chartInstance,
+          hasChartData: !!this.chartData,
+          newValKeys: newVal ? Object.keys(newVal) : [],
+          themePreset: newVal?.themePreset
+        })
+
+        // 只要有图表实例或是指标卡就更新
+        // 这样可以在没有数据的情况下也预览样式
+        if (this.chartInstance || this.isMetricCard) {
+          this.$nextTick(() => {
+            this.updateChartOption()
+          })
         }
       },
       deep: true
     },
-    */
 
     // 监听刷新频率变化
     refreshInterval: {
@@ -258,7 +367,12 @@ export default {
      * 初始化图表
      */
     initChart() {
-      
+      // 指标卡和表格不需要初始化ECharts实例
+      if (this.isMetricCard || this.isTable) {
+        console.log('[CHARTWIDGET] 指标卡/表格类型，跳过ECharts初始化')
+        return
+      }
+
       // 检查 ref 是否存在
       if (!this.$refs.chartContainer) {
         console.warn('[CHARTWIDGET] chartContainer ref not found, 延迟重试')
@@ -324,6 +438,28 @@ export default {
     },
 
     /**
+     * 处理下钻
+     */
+    handleDrillDown(params) {
+      if (!this.config.advancedConfig || !this.config.advancedConfig.drillDown) {
+        return
+      }
+
+      const drillDownConfig = this.config.advancedConfig.drillDown
+      if (!drillDownConfig.enabled || !drillDownConfig.dimensions || drillDownConfig.dimensions.length === 0) {
+        return
+      }
+
+      // 触发下钻事件
+      this.$emit('drill-down', {
+        componentId: this.config.id,
+        dimension: params.name,
+        value: params.value,
+        drillDownDimensions: drillDownConfig.dimensions
+      })
+    },
+
+    /**
      * 获取数据
      */
     async fetchData() {
@@ -340,8 +476,8 @@ export default {
         return
       }
 
-      // 如果图表实例不存在，先初始化
-      if (!this.chartInstance && this.$refs.chartContainer) {
+      // 如果图表实例不存在且不是指标卡，先初始化
+      if (!this.chartInstance && !this.isMetricCard && this.$refs.chartContainer) {
         this.initChart()
       }
 
@@ -425,10 +561,24 @@ export default {
       console.log('[ChartWidget] renderChart 被调用:', {
         componentId: this.config.id,
         componentName: this.config.name,
+        isMetricCard: this.isMetricCard,
+        isTable: this.isTable,
         hasChartInstance: !!this.chartInstance,
         hasChartData: !!this.chartData,
         chartDataLength: this.chartData?.length || 0
       })
+
+      // 指标卡特殊处理：不使用ECharts渲染
+      if (this.isMetricCard) {
+        this.renderMetricCard()
+        return
+      }
+
+      // 表格特殊处理：不使用ECharts渲染
+      if (this.isTable) {
+        this.renderTable()
+        return
+      }
 
       if (!this.chartInstance) {
         console.error('[ChartWidget] chartInstance 不存在，无法渲染')
@@ -452,6 +602,58 @@ export default {
       } catch (err) {
         console.error('[ChartWidget] 图表渲染失败:', err)
         this.error = '图表渲染失败: ' + err.message
+      }
+    },
+
+    /**
+     * 渲染指标卡
+     */
+    renderMetricCard() {
+      console.log('[ChartWidget] 渲染指标卡')
+
+      if (!this.chartData) {
+        console.warn('[ChartWidget] chartData 为空，无法渲染指标卡')
+        this.error = '无数据'
+        return
+      }
+
+      try {
+        const option = this.buildChartOption()
+        console.log('[ChartWidget] 指标卡配置:', option)
+
+        // 直接设置指标卡配置，触发响应式更新
+        this.metricCardConfig = option
+
+        console.log('[ChartWidget] 指标卡已渲染')
+      } catch (err) {
+        console.error('[ChartWidget] 指标卡渲染失败:', err)
+        this.error = '指标卡渲染失败: ' + err.message
+      }
+    },
+
+    /**
+     * 渲染表格
+     */
+    renderTable() {
+      console.log('[ChartWidget] 渲染表格')
+
+      if (!this.chartData) {
+        console.warn('[ChartWidget] chartData 为空，无法渲染表格')
+        this.error = '无数据'
+        return
+      }
+
+      try {
+        const option = this.buildChartOption()
+        console.log('[ChartWidget] 表格配置:', option)
+
+        // 直接设置表格配置，触发响应式更新
+        this.tableConfig = option
+
+        console.log('[ChartWidget] 表格已渲染')
+      } catch (err) {
+        console.error('[ChartWidget] 表格渲染失败:', err)
+        this.error = '表格渲染失败: ' + err.message
       }
     },
 
@@ -490,7 +692,7 @@ export default {
      * 将后端返回的原始数据转换为 ECharts 需要的格式
      */
     transformChartData(chartData, dataConfig) {
-      
+
       if (!chartData || !chartData.data || chartData.data.length === 0) {
         console.warn('数据为空')
         return { categories: [], series: [], data: [] }
@@ -501,11 +703,160 @@ export default {
       const metrics = dataConfig.metrics || []
       const chartType = this.config.styleConfig?.chartType || 'line'
 
+      console.log('[transformChartData] 图表类型:', chartType)
 
       // 如果没有配置维度和指标，返回空数据
       if (dimensions.length === 0 && metrics.length === 0) {
         console.warn('维度和指标都为空')
         return { categories: [], series: [], data: [] }
+      }
+
+      // 特殊处理：饼图、玫瑰图、环形图
+      if (['pie', 'rose', 'doughnut'].includes(chartType)) {
+        console.log('[transformChartData] 处理饼图类型数据')
+
+        const metric = metrics[0]
+        const metricField = metric.fieldName || metric.label || metric.field
+        const dimensionField = dimensions.length > 0 ? dimensions[0] : null
+        const dimensionFieldKey = dimensionField ? (dimensionField.fieldName || dimensionField.label || dimensionField.field) : null
+
+        const pieData = rawData.map(row => {
+          const name = dimensionFieldKey ? row[dimensionFieldKey] : '未命名'
+          const value = this.parseNumber(row[metricField])
+
+          return {
+            name: String(name),
+            value: value
+          }
+        })
+
+        console.log('[transformChartData] 饼图数据:', pieData)
+
+        return {
+          data: pieData
+        }
+      }
+
+      // 特殊处理：组合图/双轴图
+      if (['dualAxis', 'dual-axis', 'combination'].includes(chartType)) {
+        console.log('[transformChartData] 处理组合图/双轴图数据')
+
+        const dimensionField = dimensions.length > 0 ? dimensions[0] : null
+        const dimFieldKey = dimensionField ? (dimensionField.fieldName || dimensionField.label || dimensionField.field) : null
+
+        // 提取分类数据（X 轴）
+        const categories = []
+        const categoryMap = new Map()
+
+        if (dimFieldKey) {
+          rawData.forEach((row) => {
+            const categoryValue = row[dimFieldKey]
+            if (categoryValue !== undefined && categoryValue !== null) {
+              const categoryStr = String(categoryValue)
+              if (!categoryMap.has(categoryStr)) {
+                categoryMap.set(categoryStr, categories.length)
+                categories.push(categoryStr)
+              }
+            }
+          })
+        }
+
+        // 将指标分组为左轴和右轴
+        // 默认：第一个指标在左轴，其他在右轴
+        const leftMetrics = metrics.filter(m => (m.yAxisIndex || 0) === 0 || !m.yAxisIndex)
+        const rightMetrics = metrics.filter(m => (m.yAxisIndex || 0) === 1)
+
+        // 如果没有明确配置yAxisIndex，按指标数量均分
+        if (metrics.every(m => !m.yAxisIndex)) {
+          const midPoint = Math.ceil(metrics.length / 2)
+          leftMetrics.length = 0
+          rightMetrics.length = 0
+          metrics.forEach((m, i) => {
+            if (i < midPoint) {
+              leftMetrics.push(m)
+            } else {
+              rightMetrics.push(m)
+            }
+          })
+        }
+
+        console.log('[transformChartData] 左轴指标:', leftMetrics.length, '右轴指标:', rightMetrics.length)
+
+        // 构建左轴系列
+        const leftSeries = leftMetrics.map(metric => {
+          const fieldKey = metric.fieldName || metric.label || metric.field
+          const seriesType = metric.chartType || metric.type || 'bar'
+          const seriesData = []
+
+          if (dimFieldKey) {
+            // 有维度：按维度分组
+            rawData.forEach((row) => {
+              const categoryValue = row[dimFieldKey]
+              if (categoryValue !== undefined && categoryValue !== null) {
+                const categoryStr = String(categoryValue)
+                const index = categoryMap.get(categoryStr)
+                if (index !== undefined) {
+                  seriesData[index] = this.parseNumber(row[fieldKey])
+                }
+              }
+            })
+          } else {
+            // 无维度：直接使用指标值
+            rawData.forEach(row => {
+              seriesData.push(this.parseNumber(row[fieldKey]))
+            })
+          }
+
+          return {
+            name: metric.comment || metric.fieldName || metric.label || metric.field,
+            type: seriesType,
+            data: seriesData,
+            stack: metric.stack || null
+          }
+        })
+
+        // 构建右轴系列
+        const rightSeries = rightMetrics.map(metric => {
+          const fieldKey = metric.fieldName || metric.label || metric.field
+          const seriesType = metric.chartType || metric.type || 'line'
+          const seriesData = []
+
+          if (dimFieldKey) {
+            // 有维度：按维度分组
+            rawData.forEach((row) => {
+              const categoryValue = row[dimFieldKey]
+              if (categoryValue !== undefined && categoryValue !== null) {
+                const categoryStr = String(categoryValue)
+                const index = categoryMap.get(categoryStr)
+                if (index !== undefined) {
+                  seriesData[index] = this.parseNumber(row[fieldKey])
+                }
+              }
+            })
+          } else {
+            // 无维度：直接使用指标值
+            rawData.forEach(row => {
+              seriesData.push(this.parseNumber(row[fieldKey]))
+            })
+          }
+
+          return {
+            name: metric.comment || metric.fieldName || metric.label || metric.field,
+            type: seriesType,
+            data: seriesData,
+            stack: metric.stack || null
+          }
+        })
+
+        console.log('[transformChartData] 组合图数据 - categories:', categories)
+        console.log('[transformChartData] 组合图数据 - leftSeries:', leftSeries)
+        console.log('[transformChartData] 组合图数据 - rightSeries:', rightSeries)
+
+        return {
+          categories,
+          leftSeries,
+          rightSeries
+        }
       }
 
       // 特殊处理：仪表盘、水球图、指标卡等单值图表
@@ -622,10 +973,33 @@ export default {
      * 更新图表配置
      */
     updateChartOption() {
-      if (!this.chartInstance || !this.chartData) return
+      console.log('[ChartWidget] updateChartOption 被调用:', {
+        isMetricCard: this.isMetricCard,
+        hasChartInstance: !!this.chartInstance,
+        hasChartData: !!this.chartData,
+        willUpdate: !!this.chartInstance || this.isMetricCard
+      })
+
+      // 指标卡特殊处理
+      if (this.isMetricCard) {
+        if (this.chartData) {
+          this.renderMetricCard()
+        }
+        return
+      }
+
+      // 只要有图表实例就更新样式，不依赖 chartData
+      // 这样可以在没有数据的情况下也预览样式（如主题切换）
+      if (!this.chartInstance) {
+        console.warn('[ChartWidget] 图表实例不存在，跳过更新')
+        return
+      }
 
       const option = this.buildChartOption()
+      console.log('[ChartWidget] 应用图表配置:', option)
+
       this.chartInstance.setOption(option, true)
+      console.log('[ChartWidget] 图表配置已应用')
     },
 
     /**
@@ -738,10 +1112,213 @@ export default {
     },
 
     /**
+     * 处理图表点击 - 打开指标详情对话框
+     */
+    async handleChartClick() {
+      // 编辑模式下不处理点击
+      if (this.isEditMode) {
+        return
+      }
+
+      console.log('[ChartWidget] ===== handleChartClick 被调用 =====')
+      console.log('[ChartWidget] config.dataConfig:', this.config.dataConfig)
+
+      // 优先检查是否有关联的多指标配置
+      const configMetricIds = this.config.dataConfig?.metricIds
+      const configMetricList = this.config.dataConfig?.metricList
+
+      if (configMetricIds && configMetricIds.length > 0) {
+        console.log('[ChartWidget] 发现多指标配置，触发 multi-metric-click')
+        console.log('[ChartWidget] metricIds:', configMetricIds)
+        console.log('[ChartWidget] metricList:', configMetricList)
+        this.$emit('multi-metric-click', configMetricIds, configMetricList || [])
+        return
+      }
+
+      // 检查是否有关联的单指标ID（向后兼容）
+      const metricId = this.config.dataConfig?.metricId
+      if (metricId) {
+        console.log('[ChartWidget] 点击图表，打开单指标详情:', metricId)
+        this.$emit('metric-click', metricId)
+        return
+      }
+
+      // 没有关联指标时的处理 - 尝试自动匹配所有指标
+      const metrics = this.config.dataConfig?.metrics || []
+      console.log('[ChartWidget] 未找到预匹配的指标配置，尝试自动匹配，metrics:', metrics)
+      if (metrics.length === 0) {
+        // 没有配置指标字段
+        this.$message({
+          message: '该图表未配置指标字段，请在设计器中拖拽指标字段到"指标"区域',
+          type: 'info',
+          duration: 2000,
+          showClose: true
+        })
+        console.log('[ChartWidget] 图表未配置指标字段')
+        return
+      }
+
+      // 尝试根据字段名自动查找所有指标
+      try {
+        console.log('[ChartWidget] 尝试自动匹配指标字段:', metrics.map(m => m.field || m.fieldName))
+        const response = await listMetricMetadata({ pageNum: 1, pageSize: 1000 })
+        const allMetrics = response.rows || response.data || []
+
+        // 匹配所有指标
+        const matchedMetrics = []
+        const metricList = []
+
+        for (const metric of metrics) {
+          const fieldName = metric.field || metric.fieldName
+          if (!fieldName) continue
+
+          // 根据 metric_code 匹配（字段名即为metric_code）
+          const matched = allMetrics.find(m => m.metricCode === fieldName)
+
+          if (matched) {
+            matchedMetrics.push(matched.id)
+            metricList.push({
+              id: matched.id,
+              code: matched.metricCode,
+              label: metric.label || metric.comment || matched.metricName
+            })
+            console.log('[ChartWidget] 匹配到指标:', fieldName, '->', matched.metricCode, 'ID:', matched.id)
+          }
+        }
+
+        if (matchedMetrics.length > 0) {
+          // 触发多指标详情对话框
+          console.log('[ChartWidget] 准备触发 multi-metric-click 事件:', {
+            matchedMetrics,
+            metricList,
+            count: matchedMetrics.length
+          })
+          this.$emit('multi-metric-click', matchedMetrics, metricList)
+          console.log('[ChartWidget] multi-metric-click 事件已发送')
+        } else {
+          // 未找到匹配的指标
+          const metricNames = metrics.map(m => m.comment || m.fieldName || m.name).join('、')
+          this.$message({
+            message: `该图表配置了指标字段（${metricNames}），但未在指标元数据表中找到对应的指标定义`,
+            type: 'warning',
+            duration: 3000,
+            showClose: true
+          })
+          console.log('[ChartWidget] 未找到匹配的指标元数据')
+        }
+      } catch (error) {
+        console.error('[ChartWidget] 查询指标元数据失败:', error)
+        const metricNames = metrics.map(m => m.comment || m.fieldName || m.name).join('、')
+        this.$message({
+          message: `查询指标元数据失败：${error.message || error}`,
+          type: 'error',
+          duration: 3000,
+          showClose: true
+        })
+      }
+    },
+
+    /**
      * 处理配置
      */
     handleConfig() {
       this.$emit('config', this.config)
+    },
+
+    /**
+     * 获取指标卡样式
+     */
+    getMetricCardStyle() {
+      const styleConfig = this.config.styleConfig || {}
+      const height = this.isEditMode ? 'calc(100% - 40px)' : '100%'
+
+      return {
+        height,
+        backgroundColor: styleConfig.backgroundColor || '#fff',
+        borderRadius: (styleConfig.borderRadius || 4) + 'px',
+        padding: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }
+    },
+
+    /**
+     * 格式化指标值
+     */
+    formatMetricValue(value) {
+      if (value === null || value === undefined) return '-'
+
+      // 如果是数字，格式化显示
+      if (typeof value === 'number') {
+        // 如果值很大，使用千分位
+        if (Math.abs(value) >= 10000) {
+          return value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+        }
+        // 保留两位小数
+        return value.toFixed(2).replace(/\.00$/, '')
+      }
+
+      return String(value)
+    },
+
+    /**
+     * 获取趋势样式类
+     */
+    getTrendClass(trend) {
+      if (trend > 0) return 'trend-up'
+      if (trend < 0) return 'trend-down'
+      return 'trend-flat'
+    },
+
+    /**
+     * 获取趋势图标
+     */
+    getTrendIcon(trend) {
+      if (trend > 0) return 'el-icon-top'
+      if (trend < 0) return 'el-icon-bottom'
+      return 'el-icon-minus'
+    },
+
+    /**
+     * 获取表格列定义
+     */
+    getTableColumns(data) {
+      if (!data || data.length === 0) return []
+
+      const firstRow = data[0]
+      const columns = []
+
+      // 获取数据配置中的字段信息
+      const dataConfig = this.config.dataConfig || {}
+      const dimensions = dataConfig.dimensions || []
+      const metrics = dataConfig.metrics || []
+
+      // 构建字段映射（field -> label）
+      const fieldMap = new Map()
+      dimensions.forEach(dim => {
+        const field = dim.field || dim.fieldName
+        if (field) {
+          fieldMap.set(field, dim.label || dim.comment || dim.fieldName || field)
+        }
+      })
+      metrics.forEach(metric => {
+        const field = metric.field || metric.fieldName
+        if (field) {
+          fieldMap.set(field, metric.label || metric.comment || metric.fieldName || field)
+        }
+      })
+
+      // 根据字段顺序生成列定义
+      Object.keys(firstRow).forEach(key => {
+        columns.push({
+          key: key,
+          label: fieldMap.get(key) || key
+        })
+      })
+
+      console.log('[ChartWidget] 表格列定义:', columns)
+      return columns
     }
   }
 }
@@ -790,19 +1367,109 @@ export default {
 
 .edit-mode-placeholder {
   color: #c0c4cc;
-  
+
   i {
     font-size: 48px;
     color: #dcdfe6;
   }
-  
+
   p {
     margin: 8px 0;
-    
+
     &.placeholder-hint {
       font-size: 12px;
       color: #c0c4cc;
     }
+  }
+}
+
+// 指标卡样式
+.metric-card-container {
+  width: 100%;
+  min-height: 100px;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+      border-radius: 4px;
+    }
+  }
+
+  &.with-toolbar {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+}
+
+.metric-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+}
+
+.metric-card-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+
+.metric-card-value {
+  font-weight: bold;
+  line-height: 1.2;
+  margin-bottom: 8px;
+  text-align: center;
+
+  .metric-unit {
+    font-size: 0.6em;
+    margin-left: 4px;
+    opacity: 0.7;
+    font-weight: normal;
+  }
+}
+
+.metric-card-title {
+  font-weight: 500;
+  text-align: center;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+
+.metric-card-trend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  padding: 4px 12px;
+  border-radius: 12px;
+
+  &.trend-up {
+    color: #67c23a;
+    background: rgba(103, 194, 58, 0.1);
+  }
+
+  &.trend-down {
+    color: #f56c6c;
+    background: rgba(245, 108, 108, 0.1);
+  }
+
+  &.trend-flat {
+    color: #909399;
+    background: rgba(144, 147, 153, 0.1);
+  }
+
+  i {
+    font-size: 16px;
   }
 }
 
@@ -816,6 +1483,17 @@ export default {
   /* 强制限制最大宽度，图表必须适应容器 */
   max-width: 100%;
   overflow: hidden;
+
+  /* 可点击状态 */
+  &.clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+      border-radius: 4px;
+    }
+  }
 }
 
 /* 编辑模式下，图表容器需要向下移动避开工具栏 */
@@ -844,6 +1522,54 @@ export default {
 
   .el-button-group {
     pointer-events: auto; /* 确保按钮可以接收点击事件 */
+  }
+}
+
+// 表格样式
+.table-container {
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  background: #fff;
+
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+      border-radius: 4px;
+    }
+  }
+
+  &.with-toolbar {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  ::v-deep .el-table {
+    font-size: 13px;
+
+    .el-table__header th {
+      background-color: #f5f7fa;
+      color: #606266;
+      font-weight: 600;
+    }
+
+    .el-table__body tr:hover > td {
+      background-color: #f5f7fa;
+    }
+  }
+
+  ::v-deep .el-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px 0;
   }
 }
 </style>

@@ -257,10 +257,35 @@ export default {
           if (config.background.opacity !== undefined) {
             style.opacity = config.background.opacity
           }
+        } else if (config.background.type === 'gradient') {
+          // 支持渐变背景
+          const gradientType = config.background.gradientType || 'linear'
+          const startColor = config.background.startColor || '#ffffff'
+          const endColor = config.background.endColor || '#e0e0e0'
+          const direction = config.background.direction || 135
+
+          if (gradientType === 'linear') {
+            style.background = `linear-gradient(${direction}deg, ${startColor}, ${endColor})`
+          } else if (gradientType === 'radial') {
+            const position = config.background.position || 'center'
+            style.background = `radial-gradient(circle at ${position}, ${startColor}, ${endColor})`
+          }
         } else if (config.background.type === 'image') {
           style.backgroundImage = `url(${config.background.value})`
           style.backgroundSize = 'cover'
           style.backgroundPosition = 'center'
+        }
+      }
+
+      // 应用卡片样式（如果启用）
+      if (config.card && config.card.enabled) {
+        style.borderRadius = `${config.card.borderRadius || 8}px`
+        if (config.card.shadowType === 'light') {
+          style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)'
+        } else if (config.card.shadowType === 'default') {
+          style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.12)'
+        } else if (config.card.shadowType === 'strong') {
+          style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.18)'
         }
       }
 
@@ -788,11 +813,14 @@ export default {
       const leftPercent = (component.position.x / originalCanvasWidth) * 100
       const widthPercent = (component.size.width / originalCanvasWidth) * 100
 
+      // 查询组件使用自动高度，不限制固定高度
+      const isQuery = component.type === 'query'
+
       return {
         left: `${leftPercent}%`,
         top: `${component.position.y}px`,
-        width: `${widthPercent}%`,
-        height: `${component.size.height}px`,
+        width: isQuery ? '100%' : `${widthPercent}%`,
+        height: isQuery ? 'auto' : `${component.size.height}px`,
         zIndex: component.zIndex || 1
       }
     },
@@ -959,6 +987,10 @@ export default {
   transition: box-shadow 0.2s, border-color 0.2s;
   overflow: hidden;
   box-sizing: border-box;
+
+  &.has-query-component {
+    overflow: visible;
+  }
 }
 
 .component-item:hover {
@@ -982,6 +1014,8 @@ export default {
   cursor: default;
   border-color: #67c23a;
   background: linear-gradient(to right, #f0f9ff 0%, #ffffff 100%);
+  overflow: visible;
+  height: auto !important;
 }
 
 .component-item.query-component:hover {
@@ -1017,6 +1051,11 @@ export default {
   box-sizing: border-box;
   overflow: hidden;
   width: 100%;
+
+  .query-component & {
+    height: auto;
+    overflow: visible;
+  }
 }
 
 .component-header {
@@ -1055,6 +1094,11 @@ export default {
   width: 100%;
   box-sizing: border-box;
   position: relative;
+
+  &.has-query-component {
+    overflow: visible !important;
+    padding: 0;
+  }
 }
 
 .component-placeholder {

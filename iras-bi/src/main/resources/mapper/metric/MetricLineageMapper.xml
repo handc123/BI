@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.metric.mapper.MetricLineageMapper">
+
+    <resultMap type="com.zjrcu.iras.bi.metric.domain.MetricLineage" id="MetricLineageResult">
+        <id property="id" column="id"/>
+        <result property="upstreamMetricId" column="upstream_metric_id"/>
+        <result property="downstreamMetricId" column="downstream_metric_id"/>
+        <result property="transformationType" column="transformation_type"/>
+        <result property="transformationLogic" column="transformation_logic"/>
+        <result property="dependencyStrength" column="dependency_strength"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="selectMetricLineageVo">
+        SELECT id, upstream_metric_id, downstream_metric_id,
+               transformation_type, transformation_logic, dependency_strength, create_time
+        FROM bi_metric_lineage
+    </sql>
+
+    <select id="selectMetricLineageList" parameterType="com.zjrcu.iras.bi.metric.domain.MetricLineage" resultMap="MetricLineageResult">
+        <include refid="selectMetricLineageVo"/>
+        <where>
+            <if test="upstreamMetricId != null">
+                AND upstream_metric_id = #{upstreamMetricId}
+            </if>
+            <if test="downstreamMetricId != null">
+                AND downstream_metric_id = #{downstreamMetricId}
+            </if>
+            <if test="transformationType != null and transformationType != ''">
+                AND transformation_type = #{transformationType}
+            </if>
+        </where>
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectMetricLineageById" parameterType="Long" resultMap="MetricLineageResult">
+        <include refid="selectMetricLineageVo"/>
+        WHERE id = #{id}
+    </select>
+
+    <!-- 查询指标的所有上游血缘关系 -->
+    <select id="selectUpstreamLineage" resultMap="MetricLineageResult">
+        <include refid="selectMetricLineageVo"/>
+        WHERE downstream_metric_id = #{metricId}
+        ORDER BY dependency_strength DESC
+    </select>
+
+    <!-- 查询指标的所有下游血缘关系 -->
+    <select id="selectDownstreamLineage" resultMap="MetricLineageResult">
+        <include refid="selectMetricLineageVo"/>
+        WHERE upstream_metric_id = #{metricId}
+        ORDER BY dependency_strength DESC
+    </select>
+
+    <!-- 查询直接上游指标ID列表 -->
+    <select id="selectDirectUpstreamMetricIds" parameterType="Long" resultType="Long">
+        SELECT upstream_metric_id
+        FROM bi_metric_lineage
+        WHERE downstream_metric_id = #{metricId}
+    </select>
+
+    <!-- 查询直接下游指标ID列表 -->
+    <select id="selectDirectDownstreamMetricIds" parameterType="Long" resultType="Long">
+        SELECT downstream_metric_id
+        FROM bi_metric_lineage
+        WHERE upstream_metric_id = #{metricId}
+    </select>
+
+    <!-- 查询完整血缘图数据（包含节点和边） -->
+    <select id="selectLineageGraphData" parameterType="Long" resultType="java.util.Map">
+        SELECT
+            ml.id AS edge_id,
+            ml.upstream_metric_id AS source_metric_id,
+            ml.downstream_metric_id AS target_metric_id,
+            ml.transformation_type,
+            ml.transformation_logic,
+            ml.dependency_strength,
+            m1.metric_code AS source_code,
+            m1.metric_name AS source_name,
+            m2.metric_code AS target_code,
+            m2.metric_name AS target_name
+        FROM bi_metric_lineage ml
+        INNER JOIN bi_metric_metadata m1 ON m1.id = ml.upstream_metric_id AND m1.del_flag = '0'
+        INNER JOIN bi_metric_metadata m2 ON m2.id = ml.downstream_metric_id AND m2.del_flag = '0'
+        WHERE ml.upstream_metric_id = #{metricId}
+           OR ml.downstream_metric_id = #{metricId}
+    </select>
+
+    <!-- 检测循环依赖 -->
+    <select id="checkCircularDependency" parameterType="Long" resultType="Integer">
+        WITH RECURSIVE lineage_cte AS (
+            -- 起始节点
+            SELECT upstream_metric_id, downstream_metric_id, 1 AS depth
+            FROM bi_metric_lineage
+            WHERE downstream_metric_id = #{metricId}
+
+            UNION ALL
+
+            -- 递归查询上游
+            SELECT ml.upstream_metric_id, ml.downstream_metric_id, cte.depth + 1
+            FROM bi_metric_lineage ml
+            INNER JOIN lineage_cte cte ON ml.downstream_metric_id = cte.upstream_metric_id
+            WHERE cte.depth &lt; 10
+        )
+        SELECT COUNT(*) AS count
+        FROM lineage_cte
+        WHERE upstream_metric_id = #{metricId}
+    </select>
+
+    <insert id="insertLineage" parameterType="com.zjrcu.iras.bi.metric.domain.MetricLineage" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bi_metric_lineage
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="upstreamMetricId != null">upstream_metric_id,</if>
+            <if test="downstreamMetricId != null">downstream_metric_id,</if>
+            <if test="transformationType != null and transformationType != ''">transformation_type,</if>
+            <if test="transformationLogic != null and transformationLogic != ''">transformation_logic,</if>
+            <if test="dependencyStrength != null">dependency_strength,</if>
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            <if test="upstreamMetricId != null">#{upstreamMetricId},</if>
+            <if test="downstreamMetricId != null">#{downstreamMetricId},</if>
+            <if test="transformationType != null and transformationType != ''">#{transformationType},</if>
+            <if test="transformationLogic != null and transformationLogic != ''">#{transformationLogic},</if>
+            <if test="dependencyStrength != null">#{dependencyStrength},</if>
+        </trim>
+    </insert>
+
+    <insert id="batchInsertLineage" parameterType="java.util.List">
+        INSERT INTO bi_metric_lineage
+        (upstream_metric_id, downstream_metric_id, transformation_type, transformation_logic, dependency_strength)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.upstreamMetricId}, #{item.downstreamMetricId}, #{item.transformationType},
+             #{item.transformationLogic}, #{item.dependencyStrength})
+        </foreach>
+    </insert>
+
+    <update id="updateLineage" parameterType="com.zjrcu.iras.bi.metric.domain.MetricLineage">
+        UPDATE bi_metric_lineage
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="transformationType != null and transformationType != ''">transformation_type = #{transformationType},</if>
+            <if test="transformationLogic != null">transformation_logic = #{transformationLogic},</if>
+            <if test="dependencyStrength != null">dependency_strength = #{dependencyStrength},</if>
+        </trim>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteLineageById" parameterType="Long">
+        DELETE FROM bi_metric_lineage WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteLineageByIds" parameterType="Long">
+        DELETE FROM bi_metric_lineage WHERE id IN
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteLineageByMetricId" parameterType="Long">
+        DELETE FROM bi_metric_lineage
+        WHERE upstream_metric_id = #{metricId} OR downstream_metric_id = #{metricId}
+    </delete>
+
+</mapper>

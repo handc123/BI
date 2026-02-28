@@ -163,7 +163,7 @@ export default {
     },
     
     handleNameBlur() {
-      if (this.editingId && this.editingName.trim()) {
+      if (this.editingId !== null && this.editingName.trim()) {
         this.$emit('update-condition-name', {
           id: this.editingId,
           name: this.editingName.trim()

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zjrcu.iras.bi.metric.mapper.MetricMetadataMapper">
+
+    <resultMap type="com.zjrcu.iras.bi.metric.domain.MetricMetadata" id="MetricMetadataResult">
+        <id property="id" column="id"/>
+        <result property="metricCode" column="metric_code"/>
+        <result property="metricName" column="metric_name"/>
+        <result property="datasetId" column="dataset_id"/>
+        <result property="visualizationId" column="visualization_id"/>
+        <result property="businessDefinition" column="business_definition"/>
+        <result property="technicalFormula" column="technical_formula"/>
+        <result property="calculationLogic" column="calculation_logic"/>
+        <result property="ownerDept" column="owner_dept"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="dataFreshness" column="data_freshness"/>
+        <result property="updateFrequency" column="update_frequency"/>
+        <result property="status" column="status"/>
+        <result property="delFlag" column="del_flag"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectMetricMetadataVo">
+        SELECT id, metric_code, metric_name, dataset_id, visualization_id,
+               business_definition, technical_formula, calculation_logic,
+               owner_dept, dept_id, data_freshness, update_frequency,
+               status, del_flag, create_by, create_time, update_by, update_time, remark
+        FROM bi_metric_metadata
+    </sql>
+
+    <select id="selectMetricMetadataList" parameterType="com.zjrcu.iras.bi.metric.domain.MetricMetadata" resultMap="MetricMetadataResult">
+        <include refid="selectMetricMetadataVo"/>
+        <where>
+            del_flag = '0'
+            <if test="metricCode != null and metricCode != ''">
+                AND metric_code LIKE CONCAT('%', #{metricCode}, '%')
+            </if>
+            <if test="metricName != null and metricName != ''">
+                AND metric_name LIKE CONCAT('%', #{metricName}, '%')
+            </if>
+            <if test="datasetId != null">
+                AND dataset_id = #{datasetId}
+            </if>
+            <if test="visualizationId != null">
+                AND visualization_id = #{visualizationId}
+            </if>
+            <if test="ownerDept != null and ownerDept != ''">
+                AND owner_dept = #{ownerDept}
+            </if>
+            <if test="deptId != null">
+                AND dept_id = #{deptId}
+            </if>
+            <if test="dataFreshness != null and dataFreshness != ''">
+                AND data_freshness = #{dataFreshness}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                AND create_time &gt;= #{params.beginTime}
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                AND create_time &lt;= #{params.endTime}
+            </if>
+        </where>
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectMetricMetadataById" parameterType="Long" resultMap="MetricMetadataResult">
+        <include refid="selectMetricMetadataVo"/>
+        WHERE id = #{id} AND del_flag = '0'
+    </select>
+
+    <select id="selectMetricMetadataByCode" parameterType="String" resultMap="MetricMetadataResult">
+        <include refid="selectMetricMetadataVo"/>
+        WHERE metric_code = #{metricCode} AND del_flag = '0'
+    </select>
+
+    <insert id="insertMetricMetadata" parameterType="com.zjrcu.iras.bi.metric.domain.MetricMetadata" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bi_metric_metadata
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="metricCode != null and metricCode != ''">metric_code,</if>
+            <if test="metricName != null and metricName != ''">metric_name,</if>
+            <if test="datasetId != null">dataset_id,</if>
+            <if test="visualizationId != null">visualization_id,</if>
+            <if test="businessDefinition != null and businessDefinition != ''">business_definition,</if>
+            <if test="technicalFormula != null and technicalFormula != ''">technical_formula,</if>
+            <if test="calculationLogic != null and calculationLogic != ''">calculation_logic,</if>
+            <if test="ownerDept != null and ownerDept != ''">owner_dept,</if>
+            <if test="deptId != null">dept_id,</if>
+            <if test="dataFreshness != null and dataFreshness != ''">data_freshness,</if>
+            <if test="updateFrequency != null and updateFrequency != ''">update_frequency,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="delFlag != null">del_flag,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="remark != null">remark,</if>
+            create_time
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            <if test="metricCode != null and metricCode != ''">#{metricCode},</if>
+            <if test="metricName != null and metricName != ''">#{metricName},</if>
+            <if test="datasetId != null">#{datasetId},</if>
+            <if test="visualizationId != null">#{visualizationId},</if>
+            <if test="businessDefinition != null and businessDefinition != ''">#{businessDefinition},</if>
+            <if test="technicalFormula != null and technicalFormula != ''">#{technicalFormula},</if>
+            <if test="calculationLogic != null and calculationLogic != ''">#{calculationLogic},</if>
+            <if test="ownerDept != null and ownerDept != ''">#{ownerDept},</if>
+            <if test="deptId != null">#{deptId},</if>
+            <if test="dataFreshness != null and dataFreshness != ''">#{dataFreshness},</if>
+            <if test="updateFrequency != null and updateFrequency != ''">#{updateFrequency},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="delFlag != null">#{delFlag},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="remark != null">#{remark},</if>
+            CURRENT_TIMESTAMP
+        </trim>
+    </insert>
+
+    <update id="updateMetricMetadata" parameterType="com.zjrcu.iras.bi.metric.domain.MetricMetadata">
+        UPDATE bi_metric_metadata
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="metricCode != null and metricCode != ''">metric_code = #{metricCode},</if>
+            <if test="metricName != null and metricName != ''">metric_name = #{metricName},</if>
+            <if test="datasetId != null">dataset_id = #{datasetId},</if>
+            <if test="visualizationId != null">visualization_id = #{visualizationId},</if>
+            <if test="businessDefinition != null">business_definition = #{businessDefinition},</if>
+            <if test="technicalFormula != null">technical_formula = #{technicalFormula},</if>
+            <if test="calculationLogic != null">calculation_logic = #{calculationLogic},</if>
+            <if test="ownerDept != null">owner_dept = #{ownerDept},</if>
+            <if test="deptId != null">dept_id = #{deptId},</if>
+            <if test="dataFreshness != null">data_freshness = #{dataFreshness},</if>
+            <if test="updateFrequency != null">update_frequency = #{updateFrequency},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="delFlag != null">del_flag = #{delFlag},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = CURRENT_TIMESTAMP
+        </trim>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteMetricMetadataById" parameterType="Long">
+        UPDATE bi_metric_metadata SET del_flag = '1' WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteMetricMetadataByIds" parameterType="Long">
+        UPDATE bi_metric_metadata SET del_flag = '1' WHERE id IN
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <select id="selectMetricMetadataByIds" resultMap="MetricMetadataResult">
+        <include refid="selectMetricMetadataVo"/>
+        WHERE id IN
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND del_flag = '0'
+    </select>
+
+</mapper>

@@ -54,8 +54,8 @@ public class QueryExecutor implements IQueryExecutor {
      * 执行数据集查询
      *
      * @param datasetId 数据集ID
-     * @param filters 筛选条件列表
-     * @param user 当前用户(用于权限过滤)
+     * @param filters   筛选条件列表
+     * @param user      当前用户(用于权限过滤)
      * @return 查询结果
      */
     @Override
@@ -83,10 +83,10 @@ public class QueryExecutor implements IQueryExecutor {
                 long executionTime = System.currentTimeMillis() - startTime;
                 cachedResult.setExecutionTime(executionTime);
                 cachedResult.setFromCache(true);
-                
+
                 // 记录性能指标
                 recordPerformance(datasetId, executionTime, cachedResult.getTotalRows(), true, true);
-                
+
                 log.debug("查询结果来自缓存: datasetId={}, duration={}ms", datasetId, executionTime);
                 return cachedResult;
             }
@@ -119,23 +119,23 @@ public class QueryExecutor implements IQueryExecutor {
         } catch (SQLTimeoutException e) {
             long duration = System.currentTimeMillis() - startTime;
             log.warn("查询超时: datasetId={}, duration={}ms", datasetId, duration);
-            
+
             // 记录失败的性能指标
             recordPerformance(datasetId, duration, 0, false, false);
-            
+
             return QueryResult.failure("查询超时,建议转换为抽取数据集");
         } catch (SQLException e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("查询执行失败: datasetId={}, error={}", datasetId, e.getMessage());
-            
+
             // 记录失败的性能指标
             recordPerformance(datasetId, duration, 0, false, false);
-            
+
             return QueryResult.failure("查询执行失败: " + e.getMessage());
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("查询执行异常: datasetId={}, error={}", datasetId, e.getMessage(), e);
-            
+
             // 记录失败的性能指标
             recordPerformance(datasetId, duration, 0, false, false);
             return QueryResult.failure("查询执行异常: " + e.getMessage());
@@ -145,16 +145,16 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 执行聚合查询
      *
-     * @param datasetId 数据集ID
+     * @param datasetId  数据集ID
      * @param dimensions 维度字段列表
-     * @param metrics 度量字段列表
-     * @param filters 筛选条件列表
-     * @param user 当前用户
+     * @param metrics    度量字段列表
+     * @param filters    筛选条件列表
+     * @param user       当前用户
      * @return 聚合结果
      */
     @Override
     public QueryResult executeAggregation(Long datasetId, List<String> dimensions,
-                                         List<Metric> metrics, List<Filter> filters, SysUser user) {
+                                          List<Metric> metrics, List<Filter> filters, SysUser user) {
         if (datasetId == null) {
             return QueryResult.failure("数据集ID不能为空");
         }
@@ -212,7 +212,7 @@ public class QueryExecutor implements IQueryExecutor {
      *
      * @param dataset 数据集
      * @param filters 筛选条件
-     * @param user 当前用户
+     * @param user    当前用户
      * @return 查询结果
      */
     private QueryResult executeDirectQuery(Dataset dataset, List<Filter> filters, SysUser user) throws SQLException {
@@ -247,7 +247,7 @@ public class QueryExecutor implements IQueryExecutor {
      *
      * @param dataset 数据集
      * @param filters 筛选条件
-     * @param user 当前用户
+     * @param user    当前用户
      * @return 查询结果
      */
     private QueryResult executeExtractQuery(Dataset dataset, List<Filter> filters, SysUser user) throws SQLException {
@@ -281,15 +281,15 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 执行直连数据集聚合查询
      *
-     * @param dataset 数据集
+     * @param dataset    数据集
      * @param dimensions 维度字段
-     * @param metrics 度量字段
-     * @param filters 筛选条件
-     * @param user 当前用户
+     * @param metrics    度量字段
+     * @param filters    筛选条件
+     * @param user       当前用户
      * @return 查询结果
      */
     private QueryResult executeDirectAggregation(Dataset dataset, List<String> dimensions,
-                                                List<Metric> metrics, List<Filter> filters, SysUser user) throws SQLException {
+                                                 List<Metric> metrics, List<Filter> filters, SysUser user) throws SQLException {
         Connection connection = null;
         Statement statement = null;
         ResultSet resultSet = null;
@@ -315,11 +315,11 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 执行抽取数据集聚合查询
      *
-     * @param dataset 数据集
+     * @param dataset    数据集
      * @param dimensions 维度字段
-     * @param metrics 度量字段
-     * @param filters 筛选条件
-     * @param user 当前用户
+     * @param metrics    度量字段
+     * @param filters    筛选条件
+     * @param user       当前用户
      * @return 查询结果
      */
     private QueryResult executeExtractAggregation(Dataset dataset, List<String> dimensions,
@@ -351,7 +351,7 @@ public class QueryExecutor implements IQueryExecutor {
      *
      * @param dataset 数据集
      * @param filters 筛选条件
-     * @param user 当前用户
+     * @param user    当前用户
      * @return SQL语句
      */
     private String buildDirectQuerySql(Dataset dataset, List<Filter> filters, SysUser user) {
@@ -388,7 +388,7 @@ public class QueryExecutor implements IQueryExecutor {
      *
      * @param dataset 数据集
      * @param filters 筛选条件
-     * @param user 当前用户
+     * @param user    当前用户
      * @return SQL语句
      */
     private String buildExtractQuerySql(Dataset dataset, List<Filter> filters, SysUser user) {
@@ -407,15 +407,15 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 构建聚合查询SQL
      *
-     * @param dataset 数据集
+     * @param dataset    数据集
      * @param dimensions 维度字段
-     * @param metrics 度量字段
-     * @param filters 筛选条件
-     * @param user 当前用户
+     * @param metrics    度量字段
+     * @param filters    筛选条件
+     * @param user       当前用户
      * @return SQL语句
      */
     private String buildAggregationSql(Dataset dataset, List<String> dimensions,
-                                      List<Metric> metrics, List<Filter> filters, SysUser user) {
+                                       List<Metric> metrics, List<Filter> filters, SysUser user) {
         StringBuilder sql = new StringBuilder();
         Map<String, Object> queryConfig = dataset.getQueryConfigMap();
 
@@ -474,15 +474,15 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 构建抽取聚合查询SQL
      *
-     * @param dataset 数据集
+     * @param dataset    数据集
      * @param dimensions 维度字段
-     * @param metrics 度量字段
-     * @param filters 筛选条件
-     * @param user 当前用户
+     * @param metrics    度量字段
+     * @param filters    筛选条件
+     * @param user       当前用户
      * @return SQL语句
      */
     private String buildExtractAggregationSql(Dataset dataset, List<String> dimensions,
-                                             List<Metric> metrics, List<Filter> filters, SysUser user) {
+                                              List<Metric> metrics, List<Filter> filters, SysUser user) {
         // 简化实现: 从bi_extract_data表查询并在应用层聚合
         // 完整实现需要使用MySQL的JSON函数进行聚合
         return buildExtractQuerySql(dataset, filters, user);
@@ -543,7 +543,7 @@ public class QueryExecutor implements IQueryExecutor {
      * 构建WHERE子句(包含筛选条件和权限过滤)
      *
      * @param filters 筛选条件
-     * @param user 当前用户
+     * @param user    当前用户
      * @return WHERE子句
      */
     private String buildWhereClause(List<Filter> filters, SysUser user) {
@@ -631,18 +631,18 @@ public class QueryExecutor implements IQueryExecutor {
                 if (rangeValues != null && rangeValues.size() == 2) {
                     Object start = rangeValues.get(0);
                     Object end = rangeValues.get(1);
-                    
+
                     // 优化日期范围: 自动补全结束日期的时间
                     String startVal = formatValue(start);
                     String endVal = formatValue(end);
-                    
+
                     if (start instanceof String && ((String) start).matches("\\d{4}-\\d{2}-\\d{2}")) {
                         startVal = "'" + (String) start + " 00:00:00'";
                     }
                     if (end instanceof String && ((String) end).matches("\\d{4}-\\d{2}-\\d{2}")) {
                         endVal = "'" + (String) end + " 23:59:59'";
                     }
-                    
+
                     return quotedField + " BETWEEN " + startVal + " AND " + endVal;
                 }
                 return "";
@@ -722,7 +722,7 @@ public class QueryExecutor implements IQueryExecutor {
      * 解析ResultSet为QueryResult
      *
      * @param resultSet 结果集
-     * @param dataset 数据集
+     * @param dataset   数据集
      * @return 查询结果
      */
     private QueryResult parseResultSet(ResultSet resultSet, Dataset dataset) throws SQLException {
@@ -785,8 +785,8 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 关闭资源
      *
-     * @param resultSet 结果集
-     * @param statement 语句
+     * @param resultSet  结果集
+     * @param statement  语句
      * @param connection 连接
      */
     private void closeResources(ResultSet resultSet, Statement statement, Connection connection) {
@@ -815,7 +815,7 @@ public class QueryExecutor implements IQueryExecutor {
      * 从缓存获取查询结果
      *
      * @param datasetId 数据集ID
-     * @param filters 筛选条件
+     * @param filters   筛选条件
      * @return 缓存的查询结果,如果不存在则返回null
      */
     private QueryResult getCachedResult(Long datasetId, List<Filter> filters) {
@@ -837,8 +837,8 @@ public class QueryExecutor implements IQueryExecutor {
      * 将查询结果存入缓存
      *
      * @param datasetId 数据集ID
-     * @param filters 筛选条件
-     * @param result 查询结果
+     * @param filters   筛选条件
+     * @param result    查询结果
      */
     private void cacheQueryResult(Long datasetId, List<Filter> filters, QueryResult result) {
         if (cacheManager == null || result == null || !result.isSuccess()) {
@@ -848,10 +848,10 @@ public class QueryExecutor implements IQueryExecutor {
         try {
             String filterHash = generateFilterHash(filters);
             String cacheKey = cacheManager.generateCacheKey(datasetId, filterHash);
-            
+
             // 默认缓存5分钟
             int ttl = 300;
-            
+
             cacheManager.put(cacheKey, result, ttl);
             log.debug("查询结果已缓存: datasetId={}, cacheKey={}, ttl={}秒", datasetId, cacheKey, ttl);
         } catch (Exception e) {
@@ -877,11 +877,11 @@ public class QueryExecutor implements IQueryExecutor {
         StringBuilder sb = new StringBuilder();
         for (Filter filter : sortedFilters) {
             sb.append(filter.getField())
-              .append(":")
-              .append(filter.getOperator())
-              .append(":")
-              .append(filter.getValue())
-              .append(";");
+                    .append(":")
+                    .append(filter.getOperator())
+                    .append(":")
+                    .append(filter.getValue())
+                    .append(";");
         }
 
         // 使用简单的哈希算法
@@ -903,11 +903,11 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 记录查询性能指标
      *
-     * @param datasetId 数据集ID
+     * @param datasetId     数据集ID
      * @param executionTime 执行时间
-     * @param rowCount 返回行数
-     * @param fromCache 是否来自缓存
-     * @param success 是否成功
+     * @param rowCount      返回行数
+     * @param fromCache     是否来自缓存
+     * @param success       是否成功
      */
     private void recordPerformance(Long datasetId, long executionTime, long rowCount, boolean fromCache, boolean success) {
         if (performanceMonitor != null) {

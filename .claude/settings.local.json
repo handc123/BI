@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(mvn:*)",
+      "mcp__thinking__sequentialthinking",
+      "Bash(mysql:*)",
+      "mcp__puppeteer__puppeteer_navigate",
+      "Bash(findstr:*)",
+      "Bash(python:*)",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 iras 2)",
+      "Bash(1 <<'EOF'\nSET NAMES utf8mb4;\nSOURCE D:\\\\项目\\\\智能监管\\\\iras-smart-bi - 副本\\\\sql\\\\bi_metric_menu.sql;\nEOF)",
+      "Bash(curl:*)",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" --default-character-set=utf8mb4 -u root -p123456 iras -e \"SELECT COUNT\\(*\\) as metric_count FROM bi_metric_metadata WHERE metric_code LIKE ''NPL_%'' OR metric_code IN \\(''TOTAL_LOAN_BALANCE'', ''PROVISION_BALANCE''\\);\")",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\":*)",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" --default-character-set=utf8mb4 -u root -p123456 ry-vue -e \"UPDATE bi_dashboard_component SET data_config = JSON_SET\\(COALESCE\\(data_config, ''{}''\\), ''$.metricId'', 6\\) WHERE id = 3; SELECT id, component_name, JSON_EXTRACT\\(data_config, ''$.metricId''\\) as metric_id FROM bi_dashboard_component WHERE id = 3;\")",
+      "Bash(git checkout:*)",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 ry-vue -e \"SELECT id, component_name, data_config FROM bi_dashboard_component WHERE data_config LIKE ''%%concern%'' OR data_config LIKE ''%%overdue%'' OR data_config LIKE ''%%metric% LIMIT 5;\")",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 ry-vue -e \"SELECT id, component_name, data_config FROM bi_dashboard_component WHERE data_config LIKE ''%concern%'' OR data_config LIKE ''%overdue%'' OR data_config LIKE ''%metric%'' LIMIT 5;\")",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 ry-vue -e \"UPDATE bi_metric_metadata SET source_field = ''concern_non_performing_loan_ratio'' WHERE metric_code = ''CONCERN_NPL_RATIO''; UPDATE bi_metric_metadata SET source_field = ''overdue_90days_loan_ratio'' WHERE metric_code = ''OVERDUE_90DAYS_RATIO''; UPDATE bi_metric_metadata SET source_field = ''non_performing_loan_ratio'' WHERE metric_code = ''NPL_RATIO'';\")",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 ry-vue -e \"INSERT INTO bi_metric_metadata \\(metric_code, metric_name, dataset_id, business_definition, technical_formula, calculation_logic, owner_dept, data_freshness, update_frequency, status, del_flag, create_by, create_time, update_by, update_time, remark\\) VALUES \\(''overdue_90days_loan_ratio'', ''逾期90天以上贷款比率'', 1, ''逾期90天以上贷款余额 / 各项贷款余额 × 100%。该指标反映逾期90天以上贷款占总贷款的比例，是衡量贷款逾期严重程度的关键指标'', ''\\(OVERDUE_90DAYS_BALANCE / TOTAL_LOAN_BALANCE\\) * 100'', ''从 non_performing_loan_data 表的 overdue_90days_loan_ratio 字段直接获取'', ''风险管理部'', ''T-1'', ''每日'', ''0'', ''0'', ''admin'', NOW\\(\\), ''admin'', NOW\\(\\), ''字段名作为metric_code''\\) ON DUPLICATE KEY UPDATE metric_name = VALUES\\(metric_name\\), business_definition = VALUES\\(business_definition\\);\")",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 ry-vue -e \"ALTER TABLE bi_metric_metadata DROP COLUMN source_field;\")",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 ry-vue -e \"DESCRIBE bi_metric_metadata;\")",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p123456 ry-vue -e \"SELECT id, metric_code, metric_name FROM bi_metric_metadata WHERE id IN \\(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17\\) ORDER BY id;\")"
+    ]
+  }
+}
