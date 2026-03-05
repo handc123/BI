@@ -223,6 +223,12 @@ public class DashboardServiceImpl implements IDashboardService {
                 for (DashboardComponent component : config.getComponents()) {
                     String tempId = component.getTempId();
                     component.setDashboardId(dashboardId);
+                    
+                    // 验证并清理计算字段配置(导入时)
+                    if (StringUtils.isNotEmpty(component.getDataConfig())) {
+                        validateAndCleanCalculatedFields(component);
+                    }
+                    
                     componentMapper.insertComponent(component);
                     if (StringUtils.isNotEmpty(tempId)) {
                         // 支持字符串类型的临时ID（包括 "comp_xxx" 或 "-1" 这样的负数字符串）
@@ -461,6 +467,72 @@ public class DashboardServiceImpl implements IDashboardService {
             } catch (Exception e) {
                 throw new ServiceException(configName + "格式错误: " + e.getMessage());
             }
+        }
+    }
+
+    /**
+     * 验证并清理计算字段配置(导入时)
+     * 
+     * @param component 组件对象
+     */
+    private void validateAndCleanCalculatedFields(DashboardComponent component) {
+        try {
+            JSONObject dataConfig = JSONObject.parseObject(component.getDataConfig());
+            
+            // 检查是否包含计算字段
+            if (!dataConfig.containsKey("calculatedFields")) {
+                return; // 没有计算字段,无需处理
+            }
+            
+            Object calculatedFieldsObj = dataConfig.get("calculatedFields");
+            if (!(calculatedFieldsObj instanceof java.util.List)) {
+                return; // 格式不正确,跳过
+            }
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> calculatedFields = (List<Map<String, Object>>) calculatedFieldsObj;
+            
+            // 验证每个计算字段
+            for (Map<String, Object> field : calculatedFields) {
+                // 验证必填字段
+                if (!field.containsKey("name") || StringUtils.isEmpty((String) field.get("name"))) {
+                    log.warn("导入的计算字段缺少name字段,已跳过");
+                    continue;
+                }
+                if (!field.containsKey("expression") || StringUtils.isEmpty((String) field.get("expression"))) {
+                    log.warn("导入的计算字段 {} 缺少expression字段,已跳过", field.get("name"));
+                    continue;
+                }
+                if (!field.containsKey("fieldType") || StringUtils.isEmpty((String) field.get("fieldType"))) {
+                    log.warn("导入的计算字段 {} 缺少fieldType字段,已跳过", field.get("name"));
+                    continue;
+                }
+                
+                // 验证字段类型
+                String fieldType = (String) field.get("fieldType");
+                if (!"dimension".equals(fieldType) && !"metric".equals(fieldType)) {
+                    log.warn("导入的计算字段 {} 的fieldType无效: {},已跳过", field.get("name"), fieldType);
+                    continue;
+                }
+                
+                // 验证聚合方式(如果是指标类型)
+                if ("metric".equals(fieldType) && field.containsKey("aggregation")) {
+                    String aggregation = (String) field.get("aggregation");
+                    if (!java.util.Arrays.asList("AUTO", "SUM", "AVG", "MAX", "MIN", "COUNT").contains(aggregation)) {
+                        log.warn("导入的计算字段 {} 的aggregation无效: {},已设置为AUTO", field.get("name"), aggregation);
+                        field.put("aggregation", "AUTO");
+                    }
+                }
+                
+                log.info("成功验证导入的计算字段: {}", field.get("name"));
+            }
+            
+            // 注意: 这里不验证字段引用,因为导入时可能数据集不同
+            // 字段引用验证应该在用户使用时进行
+            
+        } catch (Exception e) {
+            log.warn("验证计算字段配置失败: {}", e.getMessage());
+            // 不阻止导入,只记录警告
         }
     }
 }

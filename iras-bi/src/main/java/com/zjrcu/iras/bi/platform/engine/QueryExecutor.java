@@ -50,6 +50,9 @@ public class QueryExecutor implements IQueryExecutor {
     @Autowired(required = false)
     private com.zjrcu.iras.bi.platform.monitor.QueryPerformanceMonitor performanceMonitor;
 
+    @Autowired
+    private CalculatedFieldConverter calculatedFieldConverter;
+
     /**
      * 执行数据集查询
      *
@@ -155,6 +158,25 @@ public class QueryExecutor implements IQueryExecutor {
     @Override
     public QueryResult executeAggregation(Long datasetId, List<String> dimensions,
                                           List<Metric> metrics, List<Filter> filters, SysUser user) {
+        return executeAggregation(datasetId, dimensions, metrics, filters, null, user);
+    }
+
+    /**
+     * 执行聚合查询(支持计算字段)
+     *
+     * @param datasetId        数据集ID
+     * @param dimensions       维度字段列表
+     * @param metrics          度量字段列表
+     * @param filters          筛选条件列表
+     * @param calculatedFields 计算字段列表
+     * @param user             当前用户
+     * @return 聚合结果
+     */
+    @Override
+    public QueryResult executeAggregation(Long datasetId, List<String> dimensions,
+                                          List<Metric> metrics, List<Filter> filters,
+                                          List<com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO> calculatedFields,
+                                          SysUser user) {
         if (datasetId == null) {
             return QueryResult.failure("数据集ID不能为空");
         }
@@ -179,9 +201,9 @@ public class QueryExecutor implements IQueryExecutor {
             // 2. 根据数据集类型执行聚合查询
             QueryResult result;
             if (dataset.isDirect()) {
-                result = executeDirectAggregation(dataset, dimensions, metrics, filters, user);
+                result = executeDirectAggregation(dataset, dimensions, metrics, filters, calculatedFields, user);
             } else if (dataset.isExtract()) {
-                result = executeExtractAggregation(dataset, dimensions, metrics, filters, user);
+                result = executeExtractAggregation(dataset, dimensions, metrics, filters, calculatedFields, user);
             } else {
                 return QueryResult.failure("不支持的数据集类型: " + dataset.getType());
             }
@@ -281,15 +303,18 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 执行直连数据集聚合查询
      *
-     * @param dataset    数据集
-     * @param dimensions 维度字段
-     * @param metrics    度量字段
-     * @param filters    筛选条件
-     * @param user       当前用户
+     * @param dataset          数据集
+     * @param dimensions       维度字段
+     * @param metrics          度量字段
+     * @param filters          筛选条件
+     * @param calculatedFields 计算字段
+     * @param user             当前用户
      * @return 查询结果
      */
     private QueryResult executeDirectAggregation(Dataset dataset, List<String> dimensions,
-                                                 List<Metric> metrics, List<Filter> filters, SysUser user) throws SQLException {
+                                                 List<Metric> metrics, List<Filter> filters,
+                                                 List<com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO> calculatedFields,
+                                                 SysUser user) throws SQLException {
         Connection connection = null;
         Statement statement = null;
         ResultSet resultSet = null;
@@ -297,7 +322,7 @@ public class QueryExecutor implements IQueryExecutor {
         try {
             connection = dataSourceManager.getConnection(dataset.getDatasourceId());
 
-            String sql = buildAggregationSql(dataset, dimensions, metrics, filters, user);
+            String sql = buildAggregationSql(dataset, dimensions, metrics, filters, calculatedFields, user);
             log.debug("执行直连聚合查询SQL: {}", sql);
 
             statement = connection.createStatement();
@@ -315,15 +340,18 @@ public class QueryExecutor implements IQueryExecutor {
     /**
      * 执行抽取数据集聚合查询
      *
-     * @param dataset    数据集
-     * @param dimensions 维度字段
-     * @param metrics    度量字段
-     * @param filters    筛选条件
-     * @param user       当前用户
+     * @param dataset          数据集
+     * @param dimensions       维度字段
+     * @param metrics          度量字段
+     * @param filters          筛选条件
+     * @param calculatedFields 计算字段
+     * @param user             当前用户
      * @return 查询结果
      */
     private QueryResult executeExtractAggregation(Dataset dataset, List<String> dimensions,
-                                                  List<Metric> metrics, List<Filter> filters, SysUser user) throws SQLException {
+                                                  List<Metric> metrics, List<Filter> filters,
+                                                  List<com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO> calculatedFields,
+                                                  SysUser user) throws SQLException {
         Connection connection = null;
         Statement statement = null;
         ResultSet resultSet = null;
@@ -331,7 +359,7 @@ public class QueryExecutor implements IQueryExecutor {
         try {
             connection = dataSourceManager.getConnection(dataset.getDatasourceId());
 
-            String sql = buildExtractAggregationSql(dataset, dimensions, metrics, filters, user);
+            String sql = buildExtractAggregationSql(dataset, dimensions, metrics, filters, calculatedFields, user);
             log.debug("执行抽取聚合查询SQL: {}", sql);
 
             statement = connection.createStatement();
@@ -416,25 +444,96 @@ public class QueryExecutor implements IQueryExecutor {
      */
     private String buildAggregationSql(Dataset dataset, List<String> dimensions,
                                        List<Metric> metrics, List<Filter> filters, SysUser user) {
+        return buildAggregationSql(dataset, dimensions, metrics, filters, null, user);
+    }
+
+    /**
+     * 构建聚合查询SQL(支持计算字段)
+     *
+     * @param dataset          数据集
+     * @param dimensions       维度字段
+     * @param metrics          度量字段
+     * @param filters          筛选条件
+     * @param calculatedFields 计算字段
+     * @param user             当前用户
+     * @return SQL语句
+     */
+    private String buildAggregationSql(Dataset dataset, List<String> dimensions,
+                                       List<Metric> metrics, List<Filter> filters,
+                                       List<com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO> calculatedFields,
+                                       SysUser user) {
         StringBuilder sql = new StringBuilder();
         Map<String, Object> queryConfig = dataset.getQueryConfigMap();
 
-        // 1. 构建SELECT子句(维度 + 聚合度量)
+        // 1. 构建SELECT子句(维度 + 聚合度量 + 计算字段)
         sql.append("SELECT ");
 
         List<String> selectItems = new ArrayList<>();
 
         // 添加维度字段
         if (dimensions != null && !dimensions.isEmpty()) {
-            selectItems.addAll(dimensions);
+            for (String dimension : dimensions) {
+                // 检查是否为计算字段
+                if (calculatedFields != null && isCalculatedField(dimension, calculatedFields)) {
+                    // 计算字段: 使用转换后的SQL表达式
+                    String calculatedExpr = getCalculatedFieldExpression(dimension, calculatedFields, dataset);
+                    selectItems.add(calculatedExpr + " AS " + quoteFieldName(dimension));
+                } else {
+                    // 普通字段
+                    selectItems.add(quoteFieldName(dimension));
+                }
+            }
         }
 
         // 添加度量字段
         if (metrics != null && !metrics.isEmpty()) {
             for (Metric metric : metrics) {
-                String metricExpr = metric.getAggregation() + "(" + metric.getField() + ")";
+                String fieldExpr;
+                String aggregation = metric.getAggregation();
+                
+                // 检查是否为计算字段
+                if (calculatedFields != null && isCalculatedField(metric.getField(), calculatedFields)) {
+                    // 计算字段: 获取计算字段定义
+                    com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO calcField = 
+                        calculatedFields.stream()
+                            .filter(f -> f.getName().equals(metric.getField()))
+                            .findFirst()
+                            .orElse(null);
+                    
+                    if (calcField != null) {
+                        // 使用转换后的SQL表达式
+                        fieldExpr = getCalculatedFieldExpression(metric.getField(), calculatedFields, dataset);
+                        
+                        // 检查计算字段的聚合方式
+                        String calcAggregation = calcField.getAggregation();
+                        if ("AUTO".equalsIgnoreCase(calcAggregation)) {
+                            // AUTO: 表达式中已包含聚合函数，直接使用表达式，不再应用聚合
+                            // 例如: 表达式 "SUM(jkye)" 直接使用，不再包装为 SUM(SUM(jkye))
+                            if (StringUtils.isNotEmpty(metric.getAlias())) {
+                                selectItems.add(fieldExpr + " AS " + metric.getAlias());
+                            } else {
+                                selectItems.add(fieldExpr + " AS " + quoteFieldName(metric.getField()));
+                            }
+                            continue; // 跳过后续的聚合函数应用
+                        } else {
+                            // 指定了聚合方式: 使用计算字段定义的聚合方式
+                            aggregation = calcAggregation;
+                        }
+                    } else {
+                        // 找不到计算字段定义，使用原始字段名
+                        fieldExpr = metric.getField();
+                    }
+                } else {
+                    // 普通字段: 直接使用字段名
+                    fieldExpr = metric.getField();
+                }
+                
+                // 应用聚合函数
+                String metricExpr = aggregation + "(" + fieldExpr + ")";
                 if (StringUtils.isNotEmpty(metric.getAlias())) {
                     metricExpr += " AS " + metric.getAlias();
+                } else {
+                    metricExpr += " AS " + quoteFieldName(metric.getField());
                 }
                 selectItems.add(metricExpr);
             }
@@ -459,16 +558,120 @@ public class QueryExecutor implements IQueryExecutor {
             sql.append(" WHERE ").append(whereClause);
         }
 
-        // 4. 构建GROUP BY子句 - 给维度字段加上反引号
+        // 4. 构建GROUP BY子句
         if (dimensions != null && !dimensions.isEmpty()) {
-            String quotedDimensions = dimensions.stream()
-                    .map(this::quoteFieldName)
-                    .reduce((a, b) -> a + ", " + b)
-                    .orElse("");
-            sql.append(" GROUP BY ").append(quotedDimensions);
+            sql.append(" GROUP BY ");
+            List<String> groupByItems = new ArrayList<>();
+            for (String dimension : dimensions) {
+                if (calculatedFields != null && isCalculatedField(dimension, calculatedFields)) {
+                    // 计算字段: 使用表达式
+                    String calculatedExpr = getCalculatedFieldExpression(dimension, calculatedFields, dataset);
+                    groupByItems.add(calculatedExpr);
+                } else {
+                    // 普通字段
+                    groupByItems.add(quoteFieldName(dimension));
+                }
+            }
+            sql.append(String.join(", ", groupByItems));
         }
 
         return sql.toString();
+    }
+
+    /**
+     * 检查字段是否为计算字段
+     */
+    private boolean isCalculatedField(String fieldName, List<com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO> calculatedFields) {
+        if (calculatedFields == null || calculatedFields.isEmpty()) {
+            return false;
+        }
+        return calculatedFields.stream().anyMatch(f -> f.getName().equals(fieldName));
+    }
+
+    /**
+     * 获取计算字段的SQL表达式
+     */
+    private String getCalculatedFieldExpression(String fieldName,
+                                                List<com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO> calculatedFields,
+                                                Dataset dataset) {
+        if (calculatedFields == null) {
+            return fieldName;
+        }
+
+        com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO field = calculatedFields.stream()
+                .filter(f -> f.getName().equals(fieldName))
+                .findFirst()
+                .orElse(null);
+
+        if (field == null) {
+            return fieldName;
+        }
+
+        try {
+            // 获取数据集字段列表
+            List<com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO> datasetFields = 
+                dataset.getFieldConfigMap() != null ? 
+                parseDatasetFields(dataset.getFieldConfigMap()) : 
+                new ArrayList<>();
+            
+            // 获取数据库类型 - 从关联的 DataSource 获取
+            String dbType = "mysql"; // 默认值
+            if (dataset.getDataSource() != null && dataset.getDataSource().getType() != null) {
+                dbType = dataset.getDataSource().getType();
+            }
+            
+            log.debug("[QueryExecutor] 转换计算字段: name={}, expression={}, dbType={}", 
+                field.getName(), field.getExpression(), dbType);
+            
+            // 使用CalculatedFieldConverter转换表达式
+            String sql = calculatedFieldConverter.convertToSQL(field, datasetFields, dbType);
+            
+            log.debug("[QueryExecutor] 计算字段转换结果: {}", sql);
+            
+            // 移除 AS 别名部分，因为在调用处会添加
+            if (sql.contains(" AS ")) {
+                sql = sql.substring(0, sql.indexOf(" AS "));
+            }
+            
+            return sql;
+        } catch (Exception e) {
+            log.error("[QueryExecutor] 转换计算字段失败: name={}, error={}", fieldName, e.getMessage(), e);
+            // 如果转换失败，返回原始表达式
+            return field.getExpression();
+        }
+    }
+    
+    /**
+     * 从字段配置中解析数据集字段列表
+     */
+    private List<com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO> parseDatasetFields(Map<String, Object> fieldConfig) {
+        List<com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO> result = new ArrayList<>();
+        
+        if (fieldConfig == null || fieldConfig.isEmpty()) {
+            return result;
+        }
+        
+        List<Object> fields = (List<Object>) fieldConfig.get("fields");
+        if (fields == null || fields.isEmpty()) {
+            return result;
+        }
+        
+        for (Object fieldObj : fields) {
+            Map<String, Object> field = (Map<String, Object>) fieldObj;
+            Boolean calculated = (Boolean) field.getOrDefault("calculated", false);
+            
+            // 只返回非计算字段（数据集原始字段）
+            if (!calculated) {
+                com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO fieldVO = 
+                    new com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO();
+                fieldVO.setFieldName((String) field.get("name"));
+                fieldVO.setFieldComment((String) field.getOrDefault("alias", field.get("name")));
+                fieldVO.setFieldType((String) field.getOrDefault("type", "VARCHAR"));
+                result.add(fieldVO);
+            }
+        }
+        
+        return result;
     }
 
     /**
@@ -483,6 +686,24 @@ public class QueryExecutor implements IQueryExecutor {
      */
     private String buildExtractAggregationSql(Dataset dataset, List<String> dimensions,
                                               List<Metric> metrics, List<Filter> filters, SysUser user) {
+        return buildExtractAggregationSql(dataset, dimensions, metrics, filters, null, user);
+    }
+
+    /**
+     * 构建抽取聚合查询SQL(支持计算字段)
+     *
+     * @param dataset          数据集
+     * @param dimensions       维度字段
+     * @param metrics          度量字段
+     * @param filters          筛选条件
+     * @param calculatedFields 计算字段
+     * @param user             当前用户
+     * @return SQL语句
+     */
+    private String buildExtractAggregationSql(Dataset dataset, List<String> dimensions,
+                                              List<Metric> metrics, List<Filter> filters,
+                                              List<com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO> calculatedFields,
+                                              SysUser user) {
         // 简化实现: 从bi_extract_data表查询并在应用层聚合
         // 完整实现需要使用MySQL的JSON函数进行聚合
         return buildExtractQuerySql(dataset, filters, user);

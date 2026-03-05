@@ -53,7 +53,7 @@
 </template>
 
 <script>
-import DataConfigPanel from '@/components/DataConfigPanel/index.vue'
+import DataConfig from './DataConfig.vue'
 import StyleConfig from './StyleConfig.vue'
 import AdvancedConfig from './AdvancedConfig.vue'
 import DashboardConfig from './DashboardConfig.vue'
@@ -61,7 +61,7 @@ import DashboardConfig from './DashboardConfig.vue'
 export default {
   name: 'ConfigPanel',
   components: {
-    DataConfig: DataConfigPanel,
+    DataConfig,
     StyleConfig,
     AdvancedConfig,
     DashboardConfig

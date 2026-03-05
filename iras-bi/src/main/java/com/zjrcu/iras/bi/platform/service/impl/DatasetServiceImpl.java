@@ -5,9 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zjrcu.iras.bi.platform.domain.Dataset;
 import com.zjrcu.iras.bi.platform.domain.Visualization;
 import com.zjrcu.iras.bi.platform.domain.dto.Filter;
+import com.zjrcu.iras.bi.platform.domain.dto.MetricConfigDTO;
 import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
+import com.zjrcu.iras.bi.platform.engine.MetricConverter;
+import com.zjrcu.iras.bi.platform.engine.SQLDialectAdapter;
 import com.zjrcu.iras.bi.platform.mapper.DatasetMapper;
 import com.zjrcu.iras.bi.platform.mapper.VisualizationMapper;
+import com.zjrcu.iras.bi.platform.security.SQLValidator;
 import com.zjrcu.iras.bi.platform.service.IDatasetService;
 import com.zjrcu.iras.bi.platform.service.IQueryExecutor;
 import com.zjrcu.iras.common.exception.ServiceException;
@@ -21,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * BI数据集服务实现
@@ -39,6 +44,12 @@ public class DatasetServiceImpl implements IDatasetService {
 
     @Autowired
     private IQueryExecutor queryExecutor;
+
+    @Autowired
+    private MetricConverter metricConverter;
+
+    @Autowired
+    private SQLValidator sqlValidator;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -495,29 +506,49 @@ public class DatasetServiceImpl implements IDatasetService {
                 throw new ServiceException("数据集不存在");
             }
 
-            // 2. 执行预览查询获取字段元数据(只获取1行数据以获取字段信息)
+            // 2. 获取数据集的字段配置（包含中文别名）
+            Map<String, Object> fieldConfigMap = dataset.getFieldConfigMap();
+            Map<String, String> fieldAliasMap = new java.util.HashMap<>();
+            
+            if (fieldConfigMap != null && fieldConfigMap.containsKey("fields")) {
+                List<Map<String, Object>> configFields = (List<Map<String, Object>>) fieldConfigMap.get("fields");
+                if (configFields != null) {
+                    for (Map<String, Object> configField : configFields) {
+                        String name = (String) configField.get("name");
+                        String alias = (String) configField.get("alias");
+                        if (name != null && alias != null) {
+                            fieldAliasMap.put(name, alias);
+                        }
+                    }
+                }
+            }
+
+            // 3. 执行预览查询获取字段元数据(只获取1行数据以获取字段信息)
             QueryResult queryResult = queryExecutor.executeQuery(id, null, null);
 
             if (!queryResult.isSuccess()) {
                 throw new ServiceException("获取字段元数据失败: " + queryResult.getErrorMessage());
             }
 
-            // 3. 转换字段元数据为前端需要的格式
+            // 4. 转换字段元数据为前端需要的格式
             List<QueryResult.FieldMetadata> fields = queryResult.getFields();
             List<Map<String, Object>> result = new java.util.ArrayList<>();
 
             for (QueryResult.FieldMetadata field : fields) {
                 Map<String, Object> fieldMap = new java.util.HashMap<>();
 
+                String fieldName = field.getName();
+                
                 // fieldName：原始数据库字段名（英文），用于SQL查询
-                fieldMap.put("fieldName", field.getName());
+                fieldMap.put("fieldName", fieldName);
 
-                // comment：显示名称（可能是中文别名）
-                fieldMap.put("comment", field.getAlias() != null && !field.getAlias().isEmpty()
-                    ? field.getAlias() : field.getName());
+                // comment：显示名称（优先使用fieldConfig中的alias，其次使用查询结果的alias，最后使用字段名）
+                String comment = fieldAliasMap.getOrDefault(fieldName, 
+                    field.getAlias() != null && !field.getAlias().isEmpty() ? field.getAlias() : fieldName);
+                fieldMap.put("comment", comment);
 
                 // dbFieldName：原始数据库字段名（与fieldName相同）
-                fieldMap.put("dbFieldName", field.getName());
+                fieldMap.put("dbFieldName", fieldName);
 
                 fieldMap.put("fieldType", classifyFieldType(field.getType()));
                 // 添加数据库字段类型，用于前端自动判断显示类型
@@ -567,5 +598,331 @@ public class DatasetServiceImpl implements IDatasetService {
 
         // 其他类型(字符串、日期、布尔等)归类为维度
         return "dimension";
+    }
+
+    /**
+     * 验证指标配置
+     * 需求: 9.1, 9.3, 9.5, 11.5, 12.1, 12.2
+     *
+     * @param config 指标配置
+     * @return 验证结果消息,如果验证通过返回null
+     */
+    @Override
+    public String validateMetricConfig(MetricConfigDTO config) {
+        if (config == null) {
+            return "指标配置不能为空";
+        }
+
+        try {
+            // 1. 验证基础指标
+            List<MetricConfigDTO.BaseMetric> baseMetrics = config.getBaseMetrics();
+            if (baseMetrics != null) {
+                for (MetricConfigDTO.BaseMetric metric : baseMetrics) {
+                    // 验证字段名
+                    try {
+                        sqlValidator.validateFieldName(metric.getField());
+                    } catch (SecurityException e) {
+                        return "基础指标 [" + metric.getName() + "] 字段名验证失败: " + e.getMessage();
+                    }
+
+                    // 验证聚合函数
+                    try {
+                        sqlValidator.validateAggregation(metric.getAggregation());
+                    } catch (SecurityException e) {
+                        return "基础指标 [" + metric.getName() + "] 聚合函数验证失败: " + e.getMessage();
+                    }
+                }
+            }
+
+            // 2. 验证计算指标
+            List<MetricConfigDTO.ComputedMetric> computedMetrics = config.getComputedMetrics();
+            if (computedMetrics != null) {
+                for (MetricConfigDTO.ComputedMetric metric : computedMetrics) {
+                    String error = validateComputedMetric(metric);
+                    if (error != null) {
+                        return "计算指标 [" + metric.getName() + "] 验证失败: " + error;
+                    }
+                }
+            }
+
+            // 3. 验证指标数量限制
+            int totalMetrics = (baseMetrics != null ? baseMetrics.size() : 0) +
+                              (computedMetrics != null ? computedMetrics.size() : 0);
+            if (totalMetrics > 20) {
+                return "指标数量 " + totalMetrics + " 超过最大限制 20";
+            }
+
+            // 4. 验证指标名称唯一性
+            Set<String> metricNames = new java.util.HashSet<>();
+            if (baseMetrics != null) {
+                for (MetricConfigDTO.BaseMetric metric : baseMetrics) {
+                    if (!metricNames.add(metric.getName())) {
+                        return "指标名称重复: " + metric.getName();
+                    }
+                }
+            }
+            if (computedMetrics != null) {
+                for (MetricConfigDTO.ComputedMetric metric : computedMetrics) {
+                    if (!metricNames.add(metric.getName())) {
+                        return "指标名称重复: " + metric.getName();
+                    }
+                }
+            }
+
+            return null;
+
+        } catch (Exception e) {
+            log.error("验证指标配置失败: {}", e.getMessage(), e);
+            return "验证指标配置失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 验证单个计算指标
+     *
+     * @param metric 计算指标
+     * @return 验证结果消息,如果验证通过返回null
+     */
+    private String validateComputedMetric(MetricConfigDTO.ComputedMetric metric) {
+        try {
+            if (metric instanceof MetricConfigDTO.ConditionalRatioMetric) {
+                MetricConfigDTO.ConditionalRatioMetric ratio = (MetricConfigDTO.ConditionalRatioMetric) metric;
+                sqlValidator.validateFieldName(ratio.getField());
+                sqlValidator.validateCondition(ratio.getNumeratorCondition());
+                // 分母条件允许为空（表示所有记录）
+                sqlValidator.validateCondition(ratio.getDenominatorCondition(), true);
+            } else if (metric instanceof MetricConfigDTO.SimpleRatioMetric) {
+                MetricConfigDTO.SimpleRatioMetric ratio = (MetricConfigDTO.SimpleRatioMetric) metric;
+                sqlValidator.validateFieldName(ratio.getNumeratorMetric());
+                sqlValidator.validateFieldName(ratio.getDenominatorMetric());
+            } else if (metric instanceof MetricConfigDTO.ConditionalSumMetric) {
+                MetricConfigDTO.ConditionalSumMetric sum = (MetricConfigDTO.ConditionalSumMetric) metric;
+                sqlValidator.validateFieldName(sum.getField());
+                sqlValidator.validateCondition(sum.getCondition());
+            } else if (metric instanceof MetricConfigDTO.CustomExpressionMetric) {
+                MetricConfigDTO.CustomExpressionMetric custom = (MetricConfigDTO.CustomExpressionMetric) metric;
+                sqlValidator.validateExpression(custom.getExpression());
+            } else {
+                return "不支持的计算指标类型: " + metric.getClass().getName();
+            }
+            return null;
+        } catch (SecurityException e) {
+            return e.getMessage();
+        }
+    }
+
+    /**
+     * 测试指标
+     * 需求: 11.5, 12.1, 12.2
+     *
+     * @param datasetId 数据集ID
+     * @param config 指标配置
+     * @return 查询结果
+     */
+    @Override
+    public QueryResult testMetric(Long datasetId, MetricConfigDTO config) {
+        if (datasetId == null) {
+            return QueryResult.failure("数据集ID不能为空");
+        }
+
+        if (config == null) {
+            return QueryResult.failure("指标配置不能为空");
+        }
+
+        long startTime = System.currentTimeMillis();
+
+        try {
+            // 1. 验证指标配置
+            String validationError = validateMetricConfig(config);
+            if (validationError != null) {
+                return QueryResult.failure("指标配置验证失败: " + validationError);
+            }
+
+            // 2. 获取数据集信息
+            Dataset dataset = datasetMapper.selectDatasetById(datasetId);
+            if (dataset == null) {
+                return QueryResult.failure("数据集不存在");
+            }
+
+            // 3. 获取数据源类型
+            SQLDialectAdapter.DatabaseType dbType = detectDatabaseType(dataset.getDatasourceId());
+
+            // 4. 生成测试SQL
+            String metricSql = metricConverter.convertMetricConfig(config, dbType);
+
+            // 5. 构建完整的测试查询(添加LIMIT子句)
+            String testQuery = buildTestQuery(dataset, metricSql);
+
+            log.info("测试指标SQL: {}", testQuery);
+
+            // 6. 执行测试查询
+            QueryResult result = queryExecutor.executeQuery(datasetId, null, null);
+
+            // 7. 添加执行时间
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("测试指标成功: datasetId={}, duration={}ms", datasetId, duration);
+
+            return result;
+
+        } catch (Exception e) {
+            log.error("测试指标失败: datasetId={}, error={}", datasetId, e.getMessage(), e);
+            return QueryResult.failure("测试指标失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 构建测试查询SQL
+     *
+     * @param dataset 数据集
+     * @param metricSql 指标SQL
+     * @return 完整的测试查询
+     */
+    private String buildTestQuery(Dataset dataset, String metricSql) throws JsonProcessingException {
+        // 解析查询配置
+        Map<String, Object> queryConfig = objectMapper.readValue(dataset.getQueryConfig(), Map.class);
+        String sourceType = (String) queryConfig.get("sourceType");
+
+        StringBuilder query = new StringBuilder("SELECT ");
+        query.append(metricSql);
+        query.append("\nFROM ");
+
+        if ("table".equalsIgnoreCase(sourceType)) {
+            String tableName = (String) queryConfig.get("tableName");
+            query.append(tableName);
+        } else if ("sql".equalsIgnoreCase(sourceType)) {
+            String sql = (String) queryConfig.get("sql");
+            query.append("(").append(sql).append(") AS subquery");
+        }
+
+        // 添加LIMIT子句限制返回行数
+        query.append("\nLIMIT 10");
+
+        return query.toString();
+    }
+
+    /**
+     * 检测数据库类型
+     *
+     * @param datasourceId 数据源ID
+     * @return 数据库类型
+     */
+    private SQLDialectAdapter.DatabaseType detectDatabaseType(Long datasourceId) {
+        // TODO: 从数据源配置中获取数据库类型
+        // 暂时返回MySQL作为默认值
+        return SQLDialectAdapter.DatabaseType.MYSQL;
+    }
+
+    /**
+     * 保存指标配置
+     * 需求: 9.1, 9.3, 9.5
+     *
+     * @param datasetId 数据集ID
+     * @param config 指标配置
+     * @return 结果
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int saveMetricConfig(Long datasetId, MetricConfigDTO config) {
+        if (datasetId == null) {
+            throw new ServiceException("数据集ID不能为空");
+        }
+
+        if (config == null) {
+            throw new ServiceException("指标配置不能为空");
+        }
+
+        try {
+            // 1. 验证指标配置
+            String validationError = validateMetricConfig(config);
+            if (validationError != null) {
+                throw new ServiceException("指标配置验证失败: " + validationError);
+            }
+
+            // 2. 检查数据集是否存在
+            Dataset dataset = datasetMapper.selectDatasetById(datasetId);
+            if (dataset == null) {
+                throw new ServiceException("数据集不存在");
+            }
+
+            // 3. 序列化指标配置为JSON
+            String configJson = objectMapper.writeValueAsString(config);
+
+            // 4. 更新数据集的config字段
+            dataset.setConfig(configJson);
+            dataset.setUpdateBy(SecurityUtils.getUsername());
+
+            int result = datasetMapper.updateDataset(dataset);
+
+            log.info("保存指标配置成功: datasetId={}, baseMetrics={}, computedMetrics={}",
+                    datasetId,
+                    config.getBaseMetrics() != null ? config.getBaseMetrics().size() : 0,
+                    config.getComputedMetrics() != null ? config.getComputedMetrics().size() : 0);
+
+            return result;
+
+        } catch (JsonProcessingException e) {
+            log.error("序列化指标配置失败: datasetId={}, error={}", datasetId, e.getMessage(), e);
+            throw new ServiceException("序列化指标配置失败: " + e.getMessage());
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("保存指标配置失败: datasetId={}, error={}", datasetId, e.getMessage(), e);
+            throw new ServiceException("保存指标配置失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 加载指标配置
+     * 需求: 9.3, 9.5
+     *
+     * @param datasetId 数据集ID
+     * @return 指标配置
+     */
+    @Override
+    public MetricConfigDTO loadMetricConfig(Long datasetId) {
+        if (datasetId == null) {
+            throw new ServiceException("数据集ID不能为空");
+        }
+
+        try {
+            // 1. 获取数据集
+            Dataset dataset = datasetMapper.selectDatasetById(datasetId);
+            if (dataset == null) {
+                throw new ServiceException("数据集不存在");
+            }
+
+            // 2. 检查是否有配置
+            String configJson = dataset.getConfig();
+            if (StringUtils.isEmpty(configJson)) {
+                // 返回空配置
+                return new MetricConfigDTO();
+            }
+
+            // 3. 反序列化JSON配置
+            MetricConfigDTO config = objectMapper.readValue(configJson, MetricConfigDTO.class);
+
+            // 4. 验证反序列化的配置
+            String validationError = validateMetricConfig(config);
+            if (validationError != null) {
+                log.warn("加载的指标配置验证失败: datasetId={}, error={}", datasetId, validationError);
+                throw new ServiceException("加载的指标配置无效: " + validationError);
+            }
+
+            log.info("加载指标配置成功: datasetId={}, baseMetrics={}, computedMetrics={}",
+                    datasetId,
+                    config.getBaseMetrics() != null ? config.getBaseMetrics().size() : 0,
+                    config.getComputedMetrics() != null ? config.getComputedMetrics().size() : 0);
+
+            return config;
+
+        } catch (JsonProcessingException e) {
+            log.error("反序列化指标配置失败: datasetId={}, error={}", datasetId, e.getMessage(), e);
+            throw new ServiceException("反序列化指标配置失败: " + e.getMessage());
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("加载指标配置失败: datasetId={}, error={}", datasetId, e.getMessage(), e);
+            throw new ServiceException("加载指标配置失败: " + e.getMessage());
+        }
     }
 }

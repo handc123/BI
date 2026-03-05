@@ -2,7 +2,10 @@ package com.zjrcu.iras.bi.platform.controller;
 
 import com.zjrcu.iras.bi.platform.domain.DashboardComponent;
 import com.zjrcu.iras.bi.platform.domain.ComponentTemplate;
+import com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldValidationRequest;
+import com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldValidationResponse;
 import com.zjrcu.iras.bi.platform.domain.dto.ComponentPosition;
+import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
 import com.zjrcu.iras.bi.platform.domain.dto.TemplateInfo;
 import com.zjrcu.iras.bi.platform.service.IComponentService;
 import com.zjrcu.iras.bi.platform.mapper.ComponentTemplateMapper;
@@ -101,6 +104,28 @@ public class ComponentController extends BaseController {
     @PostMapping("/{id}/copy")
     public AjaxResult copy(@PathVariable("id") Long id) {
         return success(componentService.copyComponent(id));
+    }
+
+    /**
+     * 验证计算字段
+     */
+    @PreAuthorize("@ss.hasPermi('bi:dashboard:edit')")
+    @PostMapping("/calculated-field/validate")
+    public AjaxResult validateCalculatedField(@Validated @RequestBody CalculatedFieldValidationRequest request) {
+        CalculatedFieldValidationResponse response = componentService.validateCalculatedField(
+                request.getDatasetId(), request.getField());
+        return success(response);
+    }
+
+    /**
+     * 测试计算字段
+     */
+    @PreAuthorize("@ss.hasPermi('bi:dashboard:edit')")
+    @PostMapping("/calculated-field/test")
+    public AjaxResult testCalculatedField(@Validated @RequestBody CalculatedFieldValidationRequest request) {
+        QueryResult result = componentService.testCalculatedField(
+                request.getDatasetId(), request.getField());
+        return success(result);
     }
 
     /**

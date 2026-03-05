@@ -3,6 +3,8 @@ package com.zjrcu.iras.bi.platform.controller;
 import com.zjrcu.iras.bi.platform.domain.Dataset;
 import com.zjrcu.iras.bi.platform.domain.dto.ExtractResult;
 import com.zjrcu.iras.bi.platform.domain.dto.Filter;
+import com.zjrcu.iras.bi.platform.domain.dto.MetricConfigDTO;
+import com.zjrcu.iras.bi.platform.domain.dto.MetricTestRequest;
 import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
 import com.zjrcu.iras.bi.platform.scheduler.IDataExtractScheduler;
 import com.zjrcu.iras.bi.platform.service.IDatasetService;
@@ -247,6 +249,117 @@ public class DatasetController extends BaseController {
         } catch (Exception e) {
             logger.error("获取字段元数据失败", e);
             return error("获取字段元数据失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 验证指标配置
+     * 需求: 6.5, 11.4, 11.5, 12.1
+     */
+    @PreAuthorize("@ss.hasPermi('bi:dataset:edit')")
+    @Operation(description = "验证指标配置")
+    @Log(title = "指标配置验证", businessType = BusinessType.OTHER)
+    @PostMapping("/metric/validate")
+    public AjaxResult validateMetric(@Validated @RequestBody MetricConfigDTO config) {
+        try {
+            // 验证指标配置
+            String validationError = datasetService.validateMetricConfig(config);
+            
+            if (StringUtils.isNotEmpty(validationError)) {
+                return AjaxResult.error(validationError);
+            }
+            
+            return AjaxResult.success("指标配置验证通过");
+        } catch (SecurityException e) {
+            // SQL注入或安全违规
+            logger.warn("指标配置安全验证失败: {}", e.getMessage());
+            return AjaxResult.error("配置包含不安全的内容,请检查输入");
+        } catch (Exception e) {
+            logger.error("验证指标配置失败", e);
+            return AjaxResult.error("验证指标配置失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 测试指标
+     * 需求: 11.5, 12.1, 12.2
+     */
+    @PreAuthorize("@ss.hasPermi('bi:dataset:query')")
+    @Operation(description = "测试指标计算")
+    @Log(title = "指标测试", businessType = BusinessType.OTHER)
+    @PostMapping("/metric/test")
+    public AjaxResult testMetric(@Validated @RequestBody MetricTestRequest request) {
+        try {
+            Long datasetId = request.getDatasetId();
+            MetricConfigDTO config = request.getMetric();
+            
+            // 检查数据集是否存在
+            Dataset dataset = datasetService.selectDatasetById(datasetId);
+            if (dataset == null) {
+                return AjaxResult.error("数据集不存在");
+            }
+            
+            // 执行测试查询
+            QueryResult result = datasetService.testMetric(datasetId, config);
+            
+            if (result.isSuccess()) {
+                return AjaxResult.success(result);
+            } else {
+                return AjaxResult.error(result.getMessage());
+            }
+            
+        } catch (SecurityException e) {
+            // SQL注入或安全违规
+            logger.warn("指标测试安全验证失败: {}", e.getMessage());
+            return AjaxResult.error("测试失败: 配置包含不安全的内容");
+        } catch (Exception e) {
+            logger.error("测试指标失败", e);
+            return AjaxResult.error("测试指标失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 保存指标配置
+     * 需求: 6.5, 11.4, 11.5, 12.1
+     */
+    @PreAuthorize("@ss.hasPermi('bi:dataset:edit')")
+    @Operation(description = "保存数据集指标配置")
+    @Log(title = "保存指标配置", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/config")
+    public AjaxResult saveConfig(@PathVariable Long id, 
+                                  @Validated @RequestBody MetricConfigDTO config) {
+        try {
+            // 检查数据集是否存在
+            Dataset dataset = datasetService.selectDatasetById(id);
+            if (dataset == null) {
+                return AjaxResult.error("数据集不存在");
+            }
+            
+            // 设置更新者
+            dataset.setUpdateBy(getUsername());
+            
+            // 验证指标配置
+            String validationError = datasetService.validateMetricConfig(config);
+            if (StringUtils.isNotEmpty(validationError)) {
+                return AjaxResult.error(validationError);
+            }
+            
+            // 保存指标配置
+            int result = datasetService.saveMetricConfig(id, config);
+            
+            if (result > 0) {
+                return AjaxResult.success("指标配置保存成功");
+            } else {
+                return AjaxResult.error("指标配置保存失败");
+            }
+            
+        } catch (SecurityException e) {
+            // SQL注入或安全违规
+            logger.warn("保存指标配置安全验证失败: {}", e.getMessage());
+            return AjaxResult.error("保存失败: 配置包含不安全的内容");
+        } catch (Exception e) {
+            logger.error("保存指标配置失败", e);
+            return AjaxResult.error("保存指标配置失败: " + e.getMessage());
         }
     }
 }

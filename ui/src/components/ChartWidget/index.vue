@@ -509,10 +509,12 @@ export default {
           metrics: this.config.dataConfig.metrics || [],
           filters: this.buildFilters(),
           limit: this.config.dataConfig.limit || 1000,
-          params: this.mergedQueryParams
+          params: this.mergedQueryParams,
+          calculatedFields: this.config.dataConfig.calculatedFields || [] // 添加计算字段配置
         }
 
         console.log('[ChartWidget] 发起查询请求:', queryRequest)
+        console.log('[ChartWidget] 计算字段配置:', queryRequest.calculatedFields)
 
         // 执行查询
         const response = await executeQuery(queryRequest)

@@ -1,7 +1,10 @@
 package com.zjrcu.iras.bi.platform.service;
 
 import com.zjrcu.iras.bi.platform.domain.DashboardComponent;
+import com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO;
+import com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldValidationResponse;
 import com.zjrcu.iras.bi.platform.domain.dto.ComponentPosition;
+import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
 
 import java.util.List;
 
@@ -75,4 +78,22 @@ public interface IComponentService {
      * @return 新组件
      */
     public DashboardComponent copyComponent(Long id);
+
+    /**
+     * 验证计算字段
+     * 
+     * @param datasetId 数据集ID
+     * @param field 计算字段配置
+     * @return 验证响应
+     */
+    public CalculatedFieldValidationResponse validateCalculatedField(Long datasetId, CalculatedFieldDTO field);
+
+    /**
+     * 测试计算字段
+     * 
+     * @param datasetId 数据集ID
+     * @param field 计算字段配置
+     * @return 查询结果
+     */
+    public QueryResult testCalculatedField(Long datasetId, CalculatedFieldDTO field);
 }

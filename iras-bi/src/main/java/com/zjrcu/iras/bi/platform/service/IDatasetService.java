@@ -2,6 +2,7 @@ package com.zjrcu.iras.bi.platform.service;
 
 import com.zjrcu.iras.bi.platform.domain.Dataset;
 import com.zjrcu.iras.bi.platform.domain.dto.Filter;
+import com.zjrcu.iras.bi.platform.domain.dto.MetricConfigDTO;
 import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
 
 import java.util.List;
@@ -86,4 +87,42 @@ public interface IDatasetService {
      * @return 字段元数据列表
      */
     List<Map<String, Object>> getDatasetFields(Long id);
+
+    /**
+     * 验证指标配置
+     * 需求: 9.1, 9.3, 9.5, 11.5, 12.1, 12.2
+     *
+     * @param config 指标配置
+     * @return 验证结果消息,如果验证通过返回null
+     */
+    String validateMetricConfig(MetricConfigDTO config);
+
+    /**
+     * 测试指标
+     * 需求: 11.5, 12.1, 12.2
+     *
+     * @param datasetId 数据集ID
+     * @param config 指标配置
+     * @return 查询结果
+     */
+    QueryResult testMetric(Long datasetId, MetricConfigDTO config);
+
+    /**
+     * 保存指标配置
+     * 需求: 9.1, 9.3, 9.5
+     *
+     * @param datasetId 数据集ID
+     * @param config 指标配置
+     * @return 结果
+     */
+    int saveMetricConfig(Long datasetId, MetricConfigDTO config);
+
+    /**
+     * 加载指标配置
+     * 需求: 9.3, 9.5
+     *
+     * @param datasetId 数据集ID
+     * @return 指标配置
+     */
+    MetricConfigDTO loadMetricConfig(Long datasetId);
 }

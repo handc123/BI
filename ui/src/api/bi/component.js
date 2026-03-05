@@ -111,3 +111,21 @@ export function createFromTemplate(templateId, componentData) {
     data: componentData
   })
 }
+
+// 验证计算字段
+export function validateCalculatedField(data) {
+  return request({
+    url: '/bi/component/calculated-field/validate',
+    method: 'post',
+    data: data
+  })
+}
+
+// 测试计算字段
+export function testCalculatedField(data) {
+  return request({
+    url: '/bi/component/calculated-field/test',
+    method: 'post',
+    data: data
+  })
+}

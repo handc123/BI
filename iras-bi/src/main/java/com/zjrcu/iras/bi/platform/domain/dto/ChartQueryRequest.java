@@ -29,6 +29,9 @@ public class ChartQueryRequest {
     /** 查询参数(来自查询条件) */
     private Map<String, Object> params;
     
+    /** 计算字段配置列表 */
+    private List<CalculatedFieldDTO> calculatedFields;
+    
     /**
      * 维度配置
      */
@@ -162,5 +165,13 @@ public class ChartQueryRequest {
 
     public void setParams(Map<String, Object> params) {
         this.params = params;
+    }
+
+    public List<CalculatedFieldDTO> getCalculatedFields() {
+        return calculatedFields;
+    }
+
+    public void setCalculatedFields(List<CalculatedFieldDTO> calculatedFields) {
+        this.calculatedFields = calculatedFields;
     }
 }

@@ -1,5 +1,6 @@
 package com.zjrcu.iras.bi.platform.service;
 
+import com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO;
 import com.zjrcu.iras.bi.platform.domain.dto.Filter;
 import com.zjrcu.iras.bi.platform.domain.dto.Metric;
 import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
@@ -37,4 +38,19 @@ public interface IQueryExecutor {
      */
     QueryResult executeAggregation(Long datasetId, List<String> dimensions,
                                    List<Metric> metrics, List<Filter> filters, SysUser user);
+
+    /**
+     * 执行聚合查询(支持计算字段)
+     *
+     * @param datasetId 数据集ID
+     * @param dimensions 维度字段列表
+     * @param metrics 度量字段列表
+     * @param filters 筛选条件列表
+     * @param calculatedFields 计算字段列表
+     * @param user 当前用户
+     * @return 聚合结果
+     */
+    QueryResult executeAggregation(Long datasetId, List<String> dimensions,
+                                   List<Metric> metrics, List<Filter> filters,
+                                   List<CalculatedFieldDTO> calculatedFields, SysUser user);
 }

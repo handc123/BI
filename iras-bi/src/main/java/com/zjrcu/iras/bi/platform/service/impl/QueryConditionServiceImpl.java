@@ -3,12 +3,7 @@ package com.zjrcu.iras.bi.platform.service.impl;
 import com.alibaba.fastjson2.JSONObject;
 import com.zjrcu.iras.bi.platform.domain.QueryCondition;
 import com.zjrcu.iras.bi.platform.domain.ConditionMapping;
-import com.zjrcu.iras.bi.platform.domain.dto.ChartQueryRequest;
-import com.zjrcu.iras.bi.platform.domain.dto.Filter;
-import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
-import com.zjrcu.iras.bi.platform.domain.dto.QueryConditionConfigDTO;
-import com.zjrcu.iras.bi.platform.domain.dto.ValidationResult;
-import com.zjrcu.iras.bi.platform.domain.dto.ValidationError;
+import com.zjrcu.iras.bi.platform.domain.dto.*;
 import com.zjrcu.iras.bi.platform.mapper.QueryConditionMapper;
 import com.zjrcu.iras.bi.platform.mapper.ConditionMappingMapper;
 import com.zjrcu.iras.bi.platform.service.IQueryConditionService;
@@ -413,13 +408,58 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
             }
 
             // 2. 执行查询
-            // 注意: 这里使用基础的executeQuery,它会返回原始数据
-            // 前端需要根据维度和指标配置来处理数据
-            QueryResult result = queryExecutor.executeQuery(
-                queryRequest.getDatasetId(), 
-                filters, 
-                SecurityUtils.getLoginUser().getUser()
-            );
+            // 如果有维度或指标配置，使用聚合查询（支持计算字段）
+            QueryResult result;
+            if ((queryRequest.getDimensions() != null && !queryRequest.getDimensions().isEmpty()) ||
+                (queryRequest.getMetrics() != null && !queryRequest.getMetrics().isEmpty())) {
+                
+                // 转换维度配置为字段名列表
+                List<String> dimensionFields = new ArrayList<>();
+                if (queryRequest.getDimensions() != null) {
+                    for (ChartQueryRequest.DimensionConfig dim : queryRequest.getDimensions()) {
+                        if (dim.getField() != null) {
+                            dimensionFields.add(dim.getField());
+                        }
+                    }
+                }
+                
+                // 转换指标配置为Metric对象列表
+                List<Metric> metricList = new ArrayList<>();
+                if (queryRequest.getMetrics() != null) {
+                    for (ChartQueryRequest.MetricConfig metric : queryRequest.getMetrics()) {
+                        if (metric.getField() != null) {
+                            Metric m = new Metric();
+                            m.setField(metric.getField());
+                            m.setAggregation(metric.getAggregation() != null ? metric.getAggregation() : "sum");
+                            m.setAlias(metric.getLabel());
+                            metricList.add(m);
+                        }
+                    }
+                }
+                
+                // 使用聚合查询（支持计算字段）
+                result = queryExecutor.executeAggregation(
+                    queryRequest.getDatasetId(),
+                    dimensionFields,
+                    metricList,
+                    filters,
+                    queryRequest.getCalculatedFields(),
+                    SecurityUtils.getLoginUser().getUser()
+                );
+                
+                log.debug("执行聚合查询: datasetId={}, dimensions={}, metrics={}, calculatedFields={}", 
+                    queryRequest.getDatasetId(), dimensionFields.size(), metricList.size(), 
+                    queryRequest.getCalculatedFields() != null ? queryRequest.getCalculatedFields().size() : 0);
+            } else {
+                // 没有维度和指标配置，使用基础查询返回原始数据
+                result = queryExecutor.executeQuery(
+                    queryRequest.getDatasetId(), 
+                    filters, 
+                    SecurityUtils.getLoginUser().getUser()
+                );
+                
+                log.debug("执行基础查询: datasetId={}", queryRequest.getDatasetId());
+            }
 
             // 3. 应用结果限制
             if (result.isSuccess() && queryRequest.getLimit() != null && queryRequest.getLimit() > 0) {

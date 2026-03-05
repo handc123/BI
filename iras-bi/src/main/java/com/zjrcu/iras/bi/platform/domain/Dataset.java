@@ -59,6 +59,11 @@ public class Dataset extends BaseEntity {
     private String fieldConfig;
 
     /**
+     * 指标配置(JSON格式)
+     */
+    private String config;
+
+    /**
      * 抽取配置(JSON格式,仅抽取类型)
      */
     private String extractConfig;
@@ -95,6 +100,12 @@ public class Dataset extends BaseEntity {
      */
     @JsonIgnore
     private transient Map<String, Object> fieldConfigMap;
+
+    /**
+     * 解析后的指标配置对象(不持久化到数据库)
+     */
+    @JsonIgnore
+    private transient Map<String, Object> configMap;
 
     /**
      * 解析后的抽取配置对象(不持久化到数据库)
@@ -150,6 +161,15 @@ public class Dataset extends BaseEntity {
     public void setFieldConfig(String fieldConfig) {
         this.fieldConfig = fieldConfig;
         this.fieldConfigMap = null;
+    }
+
+    public String getConfig() {
+        return config;
+    }
+
+    public void setConfig(String config) {
+        this.config = config;
+        this.configMap = null;
     }
 
     public String getExtractConfig() {
@@ -262,6 +282,40 @@ public class Dataset extends BaseEntity {
     }
 
     /**
+     * 获取解析后的指标配置对象
+     *
+     * @return 指标配置Map
+     */
+    public Map<String, Object> getConfigMap() {
+        if (configMap == null && config != null && !config.isEmpty()) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                configMap = mapper.readValue(config, Map.class);
+            } catch (JsonProcessingException e) {
+                configMap = new HashMap<>();
+            }
+        }
+        return configMap != null ? configMap : new HashMap<>();
+    }
+
+    /**
+     * 设置指标配置对象并转换为JSON字符串
+     *
+     * @param configMap 指标配置Map
+     */
+    public void setConfigMap(Map<String, Object> configMap) {
+        this.configMap = configMap;
+        if (configMap != null) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                this.config = mapper.writeValueAsString(configMap);
+            } catch (JsonProcessingException e) {
+                this.config = "{}";
+            }
+        }
+    }
+
+    /**
      * 获取解析后的抽取配置对象
      *
      * @return 抽取配置Map
@@ -322,6 +376,7 @@ public class Dataset extends BaseEntity {
                 .append("type", getType())
                 .append("queryConfig", getQueryConfig())
                 .append("fieldConfig", getFieldConfig())
+                .append("config", getConfig())
                 .append("extractConfig", getExtractConfig())
                 .append("lastExtractTime", getLastExtractTime())
                 .append("rowCount", getRowCount())

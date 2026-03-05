@@ -9,6 +9,7 @@
         <result property="type"           column="type"             />
         <result property="queryConfig"    column="query_config"     />
         <result property="fieldConfig"    column="field_config"     />
+        <result property="config"         column="config"           />
         <result property="extractConfig"  column="extract_config"   />
         <result property="lastExtractTime" column="last_extract_time"/>
         <result property="rowCount"       column="row_count"        />
@@ -21,7 +22,7 @@
     </resultMap>
 
     <sql id="selectDatasetVo">
-        select id, name, datasource_id, type, query_config, field_config, extract_config,
+        select id, name, datasource_id, type, query_config, field_config, config, extract_config,
                last_extract_time, row_count, status, create_by, create_time, update_by, update_time, remark
         from bi_dataset
     </sql>
@@ -58,6 +59,7 @@
             <if test="type != null and type != ''">type,</if>
             <if test="queryConfig != null and queryConfig != ''">query_config,</if>
             <if test="fieldConfig != null">field_config,</if>
+            <if test="config != null">config,</if>
             <if test="extractConfig != null">extract_config,</if>
             <if test="status != null">status,</if>
             <if test="createBy != null">create_by,</if>
@@ -70,6 +72,7 @@
             <if test="type != null and type != ''">#{type},</if>
             <if test="queryConfig != null and queryConfig != ''">#{queryConfig},</if>
             <if test="fieldConfig != null">#{fieldConfig},</if>
+            <if test="config != null">#{config},</if>
             <if test="extractConfig != null">#{extractConfig},</if>
             <if test="status != null">#{status},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -86,6 +89,7 @@
             <if test="type != null and type != ''">type = #{type},</if>
             <if test="queryConfig != null and queryConfig != ''">query_config = #{queryConfig},</if>
             <if test="fieldConfig != null">field_config = #{fieldConfig},</if>
+            <if test="config != null">config = #{config},</if>
             <if test="extractConfig != null">extract_config = #{extractConfig},</if>
             <if test="lastExtractTime != null">last_extract_time = #{lastExtractTime},</if>
             <if test="rowCount != null">row_count = #{rowCount},</if>
