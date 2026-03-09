@@ -7,97 +7,111 @@
     <div class="field-sections">
       <!-- 维度字段 -->
       <div class="field-section">
-        <div class="section-header">
+        <div class="section-header" @click="toggleSection('dimension')">
+          <i :class="sectionExpanded.dimension ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
           <i class="el-icon-s-grid"></i>
           <span>维度字段</span>
+          <span class="field-count">({{ dimensionFields.length }})</span>
         </div>
-        <div class="field-list">
-          <div
-            v-for="field in dimensionFields"
-            :key="field.name"
-            class="field-item"
-            draggable="true"
-            @dragstart="handleDragStart(field, 'dimension')"
-            @dragend="handleDragEnd"
-          >
-            <i class="el-icon-s-operation"></i>
-            <span class="field-name" :title="`${field.comment} (${field.name})`">
-              {{ field.comment || field.name }}
-            </span>
+        <transition name="slide">
+          <div v-show="sectionExpanded.dimension" class="field-list">
+            <div
+              v-for="field in dimensionFields"
+              :key="field.name"
+              class="field-item"
+              draggable="true"
+              @dragstart="handleDragStart(field, 'dimension')"
+              @dragend="handleDragEnd"
+            >
+              <i class="el-icon-s-operation"></i>
+              <span class="field-name" :title="`${field.comment} (${field.name})`">
+                {{ field.comment || field.name }}
+              </span>
+            </div>
+            <div v-if="dimensionFields.length === 0" class="empty-hint">
+              暂无维度字段
+            </div>
           </div>
-          <div v-if="dimensionFields.length === 0" class="empty-hint">
-            暂无维度字段
-          </div>
-        </div>
+        </transition>
       </div>
 
       <!-- 指标字段 -->
       <div class="field-section">
-        <div class="section-header">
+        <div class="section-header" @click="toggleSection('metric')">
+          <i :class="sectionExpanded.metric ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
           <i class="el-icon-s-data"></i>
           <span>指标字段</span>
+          <span class="field-count">({{ metricFields.length }})</span>
         </div>
-        <div class="field-list">
-          <div
-            v-for="field in metricFields"
-            :key="field.name"
-            class="field-item"
-            draggable="true"
-            @dragstart="handleDragStart(field, 'metric')"
-            @dragend="handleDragEnd"
-          >
-            <i class="el-icon-s-operation"></i>
-            <span class="field-name" :title="`${field.comment} (${field.name})`">
-              {{ field.comment || field.name }}
-            </span>
+        <transition name="slide">
+          <div v-show="sectionExpanded.metric" class="field-list">
+            <div
+              v-for="field in metricFields"
+              :key="field.name"
+              class="field-item"
+              draggable="true"
+              @dragstart="handleDragStart(field, 'metric')"
+              @dragend="handleDragEnd"
+            >
+              <i class="el-icon-s-operation"></i>
+              <span class="field-name" :title="`${field.comment} (${field.name})`">
+                {{ field.comment || field.name }}
+              </span>
+            </div>
+            <div v-if="metricFields.length === 0" class="empty-hint">
+              暂无指标字段
+            </div>
           </div>
-          <div v-if="metricFields.length === 0" class="empty-hint">
-            暂无指标字段
-          </div>
-        </div>
+        </transition>
       </div>
 
       <!-- 计算字段 -->
       <div class="field-section">
-        <div class="section-header">
+        <div class="section-header" @click="toggleSection('calculated')">
+          <i :class="sectionExpanded.calculated ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
           <i class="el-icon-s-operation"></i>
           <span>计算字段</span>
+          <span class="field-count">({{ calculatedFields.length }})</span>
         </div>
-        <div class="field-list">
-          <div
-            v-for="field in calculatedFields"
-            :key="field.name"
-            class="field-item calculated-field"
-            draggable="true"
-            @dragstart="handleDragStart(field, 'calculated')"
-            @dragend="handleDragEnd"
-            @click="handleEditField(field)"
-          >
-            <i class="el-icon-s-operation"></i>
-            <i class="el-icon-edit-outline fx-icon"></i>
-            <span class="field-name" :title="field.alias">
-              {{ field.alias }}
-            </span>
+        <transition name="slide">
+          <div v-show="sectionExpanded.calculated">
+            <div class="field-list">
+              <div
+                v-for="field in calculatedFields"
+                :key="field.name"
+                class="field-item calculated-field"
+                draggable="true"
+                @dragstart="handleDragStart(field, 'calculated')"
+                @dragend="handleDragEnd"
+                @click="handleEditField(field)"
+              >
+                <i class="el-icon-s-operation"></i>
+                <i class="el-icon-edit-outline fx-icon"></i>
+                <span class="field-name" :title="field.alias">
+                  {{ field.alias }}
+                </span>
+                <el-button
+                  type="text"
+                  icon="el-icon-delete"
+                  class="delete-btn"
+                  @click.stop="handleDeleteField(field)"
+                ></el-button>
+              </div>
+              <div v-if="calculatedFields.length === 0" class="empty-hint">
+                暂无计算字段
+              </div>
+            </div>
             <el-button
-              type="text"
-              icon="el-icon-delete"
-              class="delete-btn"
-              @click.stop="handleDeleteField(field)"
-            ></el-button>
+              type="primary"
+              size="small"
+              icon="el-icon-plus"
+              class="add-field-btn"
+              @click="handleAddField"
+            >
+              新建计算字段
+            </el-button>
           </div>
-          <div v-if="calculatedFields.length === 0" class="empty-hint">
-            暂无计算字段
-          </div>
-        </div>
-        <el-button
-          type="primary"
-          size="small"
-          icon="el-icon-plus"
-          class="add-field-btn"
-          @click="handleAddField"
-        >
-          新建计算字段
-        </el-button>
+        </transition>
       </div>
     </div>
   </div>
@@ -124,6 +138,15 @@ export default {
       default: ''
     }
   },
+  data() {
+    return {
+      sectionExpanded: {
+        dimension: true,
+        metric: true,
+        calculated: true
+      }
+    }
+  },
   computed: {
     dimensionFields() {
       return this.datasetFields.filter(field => field.fieldType === 'dimension');
@@ -142,6 +165,9 @@ export default {
     }
   },
   methods: {
+    toggleSection(section) {
+      this.sectionExpanded[section] = !this.sectionExpanded[section]
+    },
     handleDragStart(field, type) {
       console.log('[FieldManagementPanel] handleDragStart - field:', field, 'type:', type)
       const dragData = {
@@ -183,7 +209,6 @@ export default {
   display: flex;
   flex-direction: column;
   background: #fff;
-  border-right: 1px solid #e4e7ed;
 
   .panel-header {
     padding: 12px 16px;
@@ -204,7 +229,7 @@ export default {
   }
 
   .field-section {
-    margin-bottom: 16px;
+    margin-bottom: 8px;
 
     .section-header {
       padding: 8px 16px;
@@ -214,9 +239,24 @@ export default {
       display: flex;
       align-items: center;
       gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #f5f7fa;
+      }
 
       i {
         font-size: 14px;
+        transition: transform 0.3s;
+      }
+
+      .field-count {
+        margin-left: auto;
+        font-size: 12px;
+        color: #909399;
+        font-weight: normal;
       }
     }
 
@@ -290,5 +330,17 @@ export default {
       margin: 8px 8px 0;
     }
   }
+}
+
+/* 展开/折叠动画 */
+.slide-enter-active, .slide-leave-active {
+  transition: all 0.3s ease;
+  max-height: 1000px;
+  overflow: hidden;
+}
+
+.slide-enter, .slide-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 </style>

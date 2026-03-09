@@ -28,80 +28,85 @@
             </el-select>
           </el-form-item>
 
-          <!-- 字段管理面板 -->
-          <el-divider>字段管理</el-divider>
-          <field-management-panel
-            v-if="dataConfig.datasetId"
-            :dataset-id="dataConfig.datasetId"
-            :dataset-fields="availableFields"
-            :calculated-fields="calculatedFields"
-            :chart-type="component.styleConfig && component.styleConfig.chartType"
-            @add-calculated-field="handleAddCalculatedField"
-            @edit-calculated-field="handleEditCalculatedField"
-            @delete-calculated-field="handleDeleteCalculatedField"
-            @field-drag-start="handleFieldDragStart"
-          />
-
-          <!-- 字段配置 -->
+          <!-- 字段配置区域 - 左右布局 -->
           <el-divider>字段配置</el-divider>
-          <el-alert
-            title="提示：从上方字段管理区域拖拽字段到下方配置区"
-            type="info"
-            :closable="false"
-            style="margin-bottom: 15px"
-          />
+          <div class="field-config-layout">
+            <!-- 左侧：字段配置区 -->
+            <div class="field-config-area">
+              <el-alert
+                title="提示：从右侧字段管理区域拖拽字段到下方配置区"
+                type="info"
+                :closable="false"
+                style="margin-bottom: 15px"
+              />
 
-          <!-- 维度字段 - 只在需要维度的图表类型下显示 -->
-          <el-form-item v-if="requiresDimension" label="维度">
-            <div
-              class="drop-zone"
-              :class="{ 'is-over': isDimensionDragOver }"
-              @drop="handleDrop($event, 'dimension')"
-              @dragover.prevent="isDimensionDragOver = true"
-              @dragleave="isDimensionDragOver = false"
-            >
-              <div v-if="selectedDimensions.length === 0" class="drop-placeholder">
-                <i class="el-icon-download" style="font-size: 24px; color: #c0c4cc;"></i>
-                <p>从字段管理区域拖拽维度字段到此处</p>
-              </div>
-              <div
-                v-for="(dim, index) in selectedDimensions"
-                :key="index"
-                class="selected-field"
-              >
-                <i class="el-icon-s-operation" style="margin-right: 4px; color: #909399;"></i>
-                <i v-if="dim.isCalculated" class="el-icon-s-operation" style="margin-right: 4px; color: #409eff;"></i>
-                <span>{{ dim.isCalculated ? dim.alias : (dim.comment || dim.fieldName || dim.name) }}</span>
-                <i class="el-icon-close" @click="removeDimension(index)"></i>
-              </div>
-            </div>
-          </el-form-item>
+              <!-- 维度字段 - 只在需要维度的图表类型下显示 -->
+              <el-form-item v-if="requiresDimension" label="维度">
+                <div
+                  class="drop-zone"
+                  :class="{ 'is-over': isDimensionDragOver }"
+                  @drop="handleDrop($event, 'dimension')"
+                  @dragover.prevent="isDimensionDragOver = true"
+                  @dragleave="isDimensionDragOver = false"
+                >
+                  <div v-if="selectedDimensions.length === 0" class="drop-placeholder">
+                    <i class="el-icon-download" style="font-size: 24px; color: #c0c4cc;"></i>
+                    <p>从右侧字段管理区域拖拽维度字段到此处</p>
+                  </div>
+                  <div
+                    v-for="(dim, index) in selectedDimensions"
+                    :key="index"
+                    class="selected-field"
+                  >
+                    <i class="el-icon-s-operation" style="margin-right: 4px; color: #909399;"></i>
+                    <i v-if="dim.isCalculated" class="el-icon-s-operation" style="margin-right: 4px; color: #409eff;"></i>
+                    <span>{{ dim.isCalculated ? dim.alias : (dim.comment || dim.fieldName || dim.name) }}</span>
+                    <i class="el-icon-close" @click="removeDimension(index)"></i>
+                  </div>
+                </div>
+              </el-form-item>
 
-          <!-- 指标字段 -->
-          <el-form-item label="指标">
-            <div
-              class="drop-zone"
-              :class="{ 'is-over': isMetricDragOver }"
-              @drop="handleDrop($event, 'metric')"
-              @dragover.prevent="isMetricDragOver = true"
-              @dragleave="isMetricDragOver = false"
-            >
-              <div v-if="selectedMetrics.length === 0" class="drop-placeholder">
-                <i class="el-icon-download" style="font-size: 24px; color: #c0c4cc;"></i>
-                <p>从字段管理区域拖拽指标字段到此处</p>
-              </div>
-              <div
-                v-for="(metric, index) in selectedMetrics"
-                :key="index"
-                class="selected-field"
-              >
-                <i class="el-icon-s-operation" style="margin-right: 4px; color: #909399;"></i>
-                <i v-if="metric.isCalculated" class="el-icon-s-operation" style="margin-right: 4px; color: #409eff;"></i>
-                <span>{{ metric.isCalculated ? metric.alias : (metric.comment || metric.fieldName || metric.name) }}</span>
-                <i class="el-icon-close" @click="removeMetric(index)"></i>
-              </div>
+              <!-- 指标字段 -->
+              <el-form-item label="指标">
+                <div
+                  class="drop-zone"
+                  :class="{ 'is-over': isMetricDragOver }"
+                  @drop="handleDrop($event, 'metric')"
+                  @dragover.prevent="isMetricDragOver = true"
+                  @dragleave="isMetricDragOver = false"
+                >
+                  <div v-if="selectedMetrics.length === 0" class="drop-placeholder">
+                    <i class="el-icon-download" style="font-size: 24px; color: #c0c4cc;"></i>
+                    <p>从右侧字段管理区域拖拽指标字段到此处</p>
+                  </div>
+                  <div
+                    v-for="(metric, index) in selectedMetrics"
+                    :key="index"
+                    class="selected-field"
+                  >
+                    <i class="el-icon-s-operation" style="margin-right: 4px; color: #909399;"></i>
+                    <i v-if="metric.isCalculated" class="el-icon-s-operation" style="margin-right: 4px; color: #409eff;"></i>
+                    <span>{{ metric.isCalculated ? metric.alias : (metric.comment || metric.fieldName || metric.name) }}</span>
+                    <i class="el-icon-close" @click="removeMetric(index)"></i>
+                  </div>
+                </div>
+              </el-form-item>
             </div>
-          </el-form-item>
+
+            <!-- 右侧：字段管理面板 -->
+            <div class="field-management-area" v-if="dataConfig.datasetId">
+              <field-management-panel
+                :dataset-id="dataConfig.datasetId"
+                :dataset-fields="availableFields"
+                :calculated-fields="calculatedFields"
+                :chart-type="component.styleConfig && component.styleConfig.chartType"
+                @add-calculated-field="handleAddCalculatedField"
+                @edit-calculated-field="handleEditCalculatedField"
+                @delete-calculated-field="handleDeleteCalculatedField"
+                @field-drag-start="handleFieldDragStart"
+              />
+            </div>
+          </div>
 
           <!-- 过滤条件 -->
           <el-divider>过滤条件</el-divider>
@@ -1166,7 +1171,7 @@ export default {
 <style scoped>
 .data-config {
   padding: 16px;
-  width: 400px;
+  width: 100%;
   box-sizing: border-box;
 }
 
@@ -1176,6 +1181,27 @@ export default {
 
 .el-form-item {
   margin-bottom: 16px;
+}
+
+/* 字段配置布局 */
+.field-config-layout {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.field-config-area {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-management-area {
+  width: 280px;
+  flex-shrink: 0;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
 }
 
 .unit {

@@ -1,67 +1,45 @@
-# AGENTS.md
+# Repository Guidelines
 
-This file provides guidance to Qoder (qoder.com) when working with code in this repository.
+## Project Structure & Module Organization
+IRAS is a multi-module Java + Vue monorepo.
+- Backend modules: `iras-admin` (entry point/config/controllers), `iras-framework` (security/config), `iras-system` (system management), `iras-common` (shared utils/entities), `iras-bi` (BI and data-quality features), `iras-generator` (code generation).
+- Frontend: `ui/` (Vue 2 + Element UI + ECharts), with API clients in `ui/src/api`, pages in `ui/src/views`, reusable components in `ui/src/components`.
+- SQL and migration helpers: `sql/`.
+- Tests: primarily under `iras-bi/src/test/java` and `iras-common/src/test/java`.
 
-## Project Overview
-IRAS (智能监管分析系统) is an enterprise-grade BI and data quality monitoring platform built on the RuoYi framework.
-- **Backend**: Spring Boot 3.5.4, Java 17, Maven multi-module, MyBatis, Spring Security, Jakarta EE.
-- **Frontend**: Vue.js 2.6.12 (Options API), Element UI, ECharts 5.4.0.
-- **AI Integration**: Tongyi Qwen (qwen3-max) for data insights.
+## Build, Test, and Development Commands
+Backend (run at repo root):
+- `mvn clean compile` - compile all modules.
+- `mvn clean package -DskipTests` - build distributables without tests.
+- `mvn test -pl iras-bi` - run module tests.
+- `mvn test -Dtest=ClassName#methodName` - run a single test.
 
-## Build & Test Commands
+Frontend (run in `ui/`):
+- `npm install --registry=https://registry.npmmirror.com` - install dependencies.
+- `npm run dev` - start local dev server.
+- `npm run build:prod` - build production assets.
 
-### Backend (Java/Maven)
-```bash
-mvn clean compile              # Compile all modules
-mvn clean package -DskipTests  # Build without running tests
-mvn test -pl <module-name>     # Run tests for a specific module (e.g., iras-system)
-mvn test -Dtest=ClassName#methodName # Run a single test method
-```
+## Coding Style & Naming Conventions
+- Java: 4-space indentation, `UpperCamelCase` classes, `lowerCamelCase` methods/fields, package names lowercase.
+- Vue/JS: follow `ui/.editorconfig` (UTF-8, 2 spaces, LF, trim trailing whitespace).
+- Keep controller/service/mapper naming aligned (`*Controller`, `*Service`, `*Mapper`), and place MyBatis XML in `src/main/resources/mapper/`.
+- Use `jakarta.*` APIs for new backend code.
 
-### Frontend (Vue.js - in `ui/` directory)
-```bash
-cd ui
-npm install --registry=https://registry.npmmirror.com # Recommended
-npm run dev        # Development server (port 80)
-npm run build:prod # Production build
-```
+## Testing Guidelines
+- Backend uses JUnit-style tests (`*Test.java`).
+- Add/extend tests near changed modules, especially controller/service/engine logic in `iras-bi`.
+- Run targeted tests first, then module-level tests before opening a PR.
+- Frontend has no dedicated test script configured; validate key flows with `npm run dev` and production build checks.
 
-## High-Level Architecture
+## Commit & Pull Request Guidelines
+- Prefer Conventional Commits (seen in history): `feat: ...`, `refactor: ...`.
+- Avoid generic messages like `Changes`; use clear, scoped summaries.
+- PRs should include:
+  - What changed and why.
+  - Affected modules/paths (for example, `iras-bi/...`, `ui/src/views/...`).
+  - Verification evidence (commands run and results).
+  - Screenshots/GIFs for UI changes and related issue/task links.
 
-### Module Structure
-- `iras-admin`: Web layer, REST controllers, `application.yml`, and the `IrasApplication` entry point.
-- `iras-framework`: Security (JWT), configurations, Druid pool, and core filters/interceptors.
-- `iras-system`: System management (Users, Roles, Depts, Menus, Dictionaries).
-- `iras-common`: Base entities, annotations, constants, and global utilities.
-- `iras-bi`: Core business modules:
-    - `platform/`: BI core (Datasources, Datasets, Dashboards, Visualizations).
-    - `conversionquality/`, `fieldquality/`, `indicatorquality/`: Data quality monitoring logic.
-    - `globaloverview/`: Aggregated dashboards and AI endpoints (`AiController.java`).
-
-### BI Core Flow
-1. **Datasource**: Multi-database support (MySQL, PostgreSQL, ClickHouse, Doris).
-2. **Dataset**: SQL or API based. Supports "Direct Query" and "Extract Mode" (cached snapshot).
-3. **Visualization**: ECharts configurations bound to datasets.
-4. **Dashboard**: Drag-and-drop layout using `vue-grid-layout`.
-
-## Development Patterns
-
-### Backend (Jakarta EE & RuoYi)
-- **Jakarta Namespace**: Use `jakarta.*` instead of `javax.*`.
-- **Controller Pattern**:
-    - `@PreAuthorize("@ss.hasPermi('module:function:action')")` for permissions.
-    - `@Log(title = "...", businessType = BusinessType.INSERT)` for audit trails.
-    - Return `AjaxResult` for standard responses or `TableDataInfo` for paginated lists.
-- **Data Access**: MyBatis XML mappers are in `src/main/resources/mapper/`.
-- **Entity**: Most domain entities should extend `BaseEntity`.
-
-### Frontend
-- **API Services**: Defined in `ui/src/api/` matching the backend controller structure.
-- **Permissions**: Use `v-hasPermi="['permission:code']"` directive.
-- **Dictionaries**: Load via `dicts: ['dict_type']` in component options.
-- **Components**: Reusable components like `Pagination`, `RightToolbar`, and `DictTag` are global.
-
-## Development Workflow: Adding Features
-1. **Backend**: Entity (`domain`) -> Mapper Interface & XML -> Service Interface & `impl` -> Controller.
-2. **Frontend**: API service -> Vue view component -> Add to RuoYi menu system (DB/UI).
-3. **Permissions**: Add permission string to `sys_menu` table and use in `@PreAuthorize`/`v-hasPermi`.
+## Security & Configuration Tips
+- Do not commit real credentials; keep environment-specific values in local config.
+- Review `iras-admin/src/main/resources/application.yml` changes carefully, especially datasource and auth settings.
