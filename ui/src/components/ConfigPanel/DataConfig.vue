@@ -178,153 +178,6 @@
         </el-form>
       </el-tab-pane>
 
-      <!-- 基础指标选项卡 -->
-      <el-tab-pane label="基础指标" name="baseMetrics">
-        <div class="metrics-panel">
-          <div class="metrics-header">
-            <el-button
-              type="primary"
-              size="small"
-              icon="el-icon-plus"
-              @click="handleAddMetric('base')"
-              :disabled="!dataConfig.datasetId"
-            >
-              添加基础指标
-            </el-button>
-            <el-alert
-              v-if="baseMetrics.length > 20"
-              title="警告：指标数量超过20个可能影响性能"
-              type="warning"
-              :closable="false"
-              style="margin-left: 10px; flex: 1"
-            />
-          </div>
-
-          <div class="metrics-list">
-            <el-empty v-if="baseMetrics.length === 0" description="暂无基础指标，点击上方按钮添加" />
-            <draggable
-              v-else
-              v-model="baseMetrics"
-              handle=".drag-handle"
-              @end="handleMetricReorder"
-            >
-              <div
-                v-for="(metric, index) in baseMetrics"
-                :key="metric.name"
-                class="metric-item"
-              >
-                <div class="metric-drag">
-                  <i class="el-icon-s-operation drag-handle"></i>
-                </div>
-                <div class="metric-info">
-                  <div class="metric-name">
-                    <el-tag size="mini" type="success">基础</el-tag>
-                    <span class="name">{{ metric.alias }}</span>
-                    <span class="identifier">({{ metric.name }})</span>
-                  </div>
-                  <div class="metric-sql">
-                    <el-tooltip :content="getMetricSqlPreview(metric)" placement="top">
-                      <span class="sql-preview">{{ getMetricSqlPreview(metric) }}</span>
-                    </el-tooltip>
-                  </div>
-                </div>
-                <div class="metric-actions">
-                  <el-button
-                    type="text"
-                    size="small"
-                    icon="el-icon-edit"
-                    @click="handleEditMetric(metric, index, 'base')"
-                  >
-                    编辑
-                  </el-button>
-                  <el-button
-                    type="text"
-                    size="small"
-                    icon="el-icon-delete"
-                    @click="handleDeleteMetric(index, 'base')"
-                  >
-                    删除
-                  </el-button>
-                </div>
-              </div>
-            </draggable>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <!-- 计算指标选项卡 -->
-      <el-tab-pane label="计算指标" name="computedMetrics">
-        <div class="metrics-panel">
-          <div class="metrics-header">
-            <el-button
-              type="primary"
-              size="small"
-              icon="el-icon-plus"
-              @click="handleAddMetric('computed')"
-              :disabled="!dataConfig.datasetId"
-            >
-              添加计算指标
-            </el-button>
-            <el-alert
-              v-if="totalMetricsCount > 20"
-              title="警告：指标数量超过20个可能影响性能"
-              type="warning"
-              :closable="false"
-              style="margin-left: 10px; flex: 1"
-            />
-          </div>
-
-          <div class="metrics-list">
-            <el-empty v-if="computedMetrics.length === 0" description="暂无计算指标，点击上方按钮添加" />
-            <draggable
-              v-else
-              v-model="computedMetrics"
-              handle=".drag-handle"
-              @end="handleMetricReorder"
-            >
-              <div
-                v-for="(metric, index) in computedMetrics"
-                :key="metric.name"
-                class="metric-item"
-              >
-                <div class="metric-drag">
-                  <i class="el-icon-s-operation drag-handle"></i>
-                </div>
-                <div class="metric-info">
-                  <div class="metric-name">
-                    <el-tag size="mini" type="warning">{{ getComputeTypeLabel(metric.computeType) }}</el-tag>
-                    <span class="name">{{ metric.alias }}</span>
-                    <span class="identifier">({{ metric.name }})</span>
-                  </div>
-                  <div class="metric-sql">
-                    <el-tooltip :content="getMetricSqlPreview(metric)" placement="top">
-                      <span class="sql-preview">{{ getMetricSqlPreview(metric) }}</span>
-                    </el-tooltip>
-                  </div>
-                </div>
-                <div class="metric-actions">
-                  <el-button
-                    type="text"
-                    size="small"
-                    icon="el-icon-edit"
-                    @click="handleEditMetric(metric, index, 'computed')"
-                  >
-                    编辑
-                  </el-button>
-                  <el-button
-                    type="text"
-                    size="small"
-                    icon="el-icon-delete"
-                    @click="handleDeleteMetric(index, 'computed')"
-                  >
-                    删除
-                  </el-button>
-                </div>
-              </div>
-            </draggable>
-          </div>
-        </div>
-      </el-tab-pane>
     </el-tabs>
 
     <!-- 数据预览对话框 -->
@@ -347,16 +200,6 @@
       </div>
     </el-dialog>
 
-    <!-- 指标配置对话框 -->
-    <metric-config-dialog
-      :visible.sync="metricDialogVisible"
-      :dataset-id="dataConfig.datasetId"
-      :metric="currentEditingMetric"
-      :available-fields="availableFields"
-      :available-metrics="allMetrics"
-      @submit="handleMetricSubmit"
-    />
-
     <!-- 计算字段配置对话框 -->
     <calculated-field-dialog
       :visible.sync="calculatedFieldDialogVisible"
@@ -371,18 +214,14 @@
 <script>
 import { listDataSource } from '@/api/bi/datasource'
 import { listDataset, getDatasetData, getDatasetFields } from '@/api/bi/dataset'
-import MetricConfigDialog from '@/components/MetricConfigDialog'
 import FieldManagementPanel from '@/components/FieldManagementPanel'
 import CalculatedFieldDialog from '@/components/CalculatedFieldDialog'
-import draggable from 'vuedraggable'
 
 export default {
   name: 'DataConfig',
   components: {
-    MetricConfigDialog,
     FieldManagementPanel,
-    CalculatedFieldDialog,
-    draggable
+    CalculatedFieldDialog
   },
   props: {
     component: {
@@ -405,13 +244,6 @@ export default {
         filters: [],
         calculatedFields: [] // 计算字段配置
       },
-      // 指标配置
-      baseMetrics: [],
-      computedMetrics: [],
-      metricDialogVisible: false,
-      currentEditingMetric: null,
-      currentEditingIndex: -1,
-      currentEditingType: null,
       // 计算字段配置
       calculatedFields: [],
       calculatedFieldDialogVisible: false,
@@ -466,14 +298,6 @@ export default {
         }
         return isMetric
       })
-    },
-    // 所有指标（基础+计算）
-    allMetrics() {
-      return [...this.baseMetrics, ...this.computedMetrics]
-    },
-    // 总指标数量
-    totalMetricsCount() {
-      return this.baseMetrics.length + this.computedMetrics.length
     }
   },
   mounted() {
@@ -507,12 +331,6 @@ export default {
           }
           return m
         })
-
-        // 初始化指标配置
-        if (this.component.dataConfig.metricConfig) {
-          this.baseMetrics = this.component.dataConfig.metricConfig.baseMetrics || []
-          this.computedMetrics = this.component.dataConfig.metricConfig.computedMetrics || []
-        }
 
         // 初始化计算字段
         this.calculatedFields = this.component.dataConfig.calculatedFields || []
@@ -600,8 +418,6 @@ export default {
       this.dataConfig.measures = []
       this.dataConfig.filters = []
       this.availableFields = []
-      this.baseMetrics = []
-      this.computedMetrics = []
       this.calculatedFields = []
       this.loadDatasets(datasourceId)
       this.emitChange()
@@ -640,8 +456,6 @@ export default {
       this.dataConfig.filters = []
       this.selectedDimensions = []
       this.selectedMetrics = []
-      this.baseMetrics = []
-      this.computedMetrics = []
       this.calculatedFields = []
       this.loadDatasetFields(datasetId)
       this.emitChange()
@@ -840,173 +654,6 @@ export default {
       }
     },
 
-    // ========== 指标配置相关方法 ==========
-
-    // 添加指标
-    handleAddMetric(type) {
-      if (!this.dataConfig.datasetId) {
-        this.$message.warning('请先选择数据集')
-        return
-      }
-      this.currentEditingMetric = null
-      this.currentEditingIndex = -1
-      this.currentEditingType = type
-      this.metricDialogVisible = true
-    },
-
-    // 编辑指标
-    handleEditMetric(metric, index, type) {
-      this.currentEditingMetric = { ...metric }
-      this.currentEditingIndex = index
-      this.currentEditingType = type
-      this.metricDialogVisible = true
-    },
-
-    // 删除指标
-    handleDeleteMetric(index, type) {
-      const metricList = type === 'base' ? this.baseMetrics : this.computedMetrics
-      const metric = metricList[index]
-
-      // 检查依赖
-      const dependencies = this.checkMetricDependencies(metric.name)
-      if (dependencies.length > 0) {
-        const depNames = dependencies.map(d => d.alias).join('、')
-        this.$confirm(
-          `指标 "${metric.alias}" 被以下计算指标引用：${depNames}。删除后这些指标可能无法正常工作，是否继续？`,
-          '警告',
-          {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        ).then(() => {
-          this.performDeleteMetric(index, type)
-        }).catch(() => {
-          // 取消删除
-        })
-      } else {
-        this.$confirm(`确定要删除指标 "${metric.alias}" 吗？`, '提示', {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }).then(() => {
-          this.performDeleteMetric(index, type)
-        }).catch(() => {
-          // 取消删除
-        })
-      }
-    },
-
-    // 执行删除指标
-    performDeleteMetric(index, type) {
-      if (type === 'base') {
-        this.baseMetrics.splice(index, 1)
-      } else {
-        this.computedMetrics.splice(index, 1)
-      }
-      this.$message.success('删除成功')
-      this.syncMetricConfig()
-    },
-
-    // 检查指标依赖
-    checkMetricDependencies(metricName) {
-      const dependencies = []
-      
-      // 检查计算指标中的引用
-      this.computedMetrics.forEach(metric => {
-        if (metric.computeType === 'simple_ratio') {
-          if (metric.numeratorMetric === metricName || metric.denominatorMetric === metricName) {
-            dependencies.push(metric)
-          }
-        } else if (metric.computeType === 'custom_expression') {
-          // 简单检查表达式中是否包含指标名称
-          if (metric.expression && metric.expression.includes(metricName)) {
-            dependencies.push(metric)
-          }
-        }
-      })
-
-      return dependencies
-    },
-
-    // 指标提交
-    handleMetricSubmit(metricConfig) {
-      if (this.currentEditingIndex >= 0) {
-        // 编辑模式
-        if (this.currentEditingType === 'base') {
-          this.$set(this.baseMetrics, this.currentEditingIndex, metricConfig)
-        } else {
-          this.$set(this.computedMetrics, this.currentEditingIndex, metricConfig)
-        }
-        this.$message.success('指标更新成功')
-      } else {
-        // 新增模式
-        // 检查指标名称是否重复
-        const exists = this.allMetrics.some(m => m.name === metricConfig.name)
-        if (exists) {
-          this.$message.error('指标名称已存在，请使用其他名称')
-          return
-        }
-
-        if (this.currentEditingType === 'base') {
-          this.baseMetrics.push(metricConfig)
-        } else {
-          this.computedMetrics.push(metricConfig)
-        }
-        this.$message.success('指标添加成功')
-      }
-
-      this.syncMetricConfig()
-      this.metricDialogVisible = false
-    },
-
-    // 指标重新排序
-    handleMetricReorder() {
-      this.syncMetricConfig()
-    },
-
-    // 同步指标配置
-    syncMetricConfig() {
-      this.emitChange()
-    },
-
-    // 获取指标SQL预览
-    getMetricSqlPreview(metric) {
-      if (!metric) return ''
-
-      if (metric.field && metric.aggregation) {
-        // 基础指标
-        return `${metric.aggregation}(${metric.field}) AS ${metric.name}`
-      } else if (metric.computeType) {
-        // 计算指标
-        switch (metric.computeType) {
-          case 'conditional_ratio':
-            return `SUM(CASE WHEN ${metric.numeratorCondition || '...'} THEN ${metric.field} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${metric.denominatorCondition || '...'} THEN ${metric.field} ELSE 0 END), 0)`
-          case 'simple_ratio':
-            return `${metric.numeratorMetric || '...'} / NULLIF(${metric.denominatorMetric || '...'}, 0)`
-          case 'conditional_sum':
-            return `SUM(CASE WHEN ${metric.condition || '...'} THEN ${metric.field} ELSE 0 END)`
-          case 'custom_expression':
-            return metric.expression || '...'
-          default:
-            return '未知类型'
-        }
-      }
-
-      return ''
-    },
-
-    // 获取计算类型标签
-    getComputeTypeLabel(computeType) {
-      const labels = {
-        'conditional_ratio': '条件比率',
-        'simple_ratio': '简单比率',
-        'conditional_sum': '条件求和',
-        'custom_expression': '自定义表达式'
-      }
-      return labels[computeType] || '计算'
-    },
-
     // ========== 计算字段管理方法 ==========
 
     // 添加计算字段
@@ -1147,11 +794,7 @@ export default {
         measures: this.dataConfig.measures,
         metrics: this.dataConfig.metrics,
         filters: this.dataConfig.filters,
-        calculatedFields: this.calculatedFields,
-        metricConfig: {
-          baseMetrics: this.baseMetrics,
-          computedMetrics: this.computedMetrics
-        }
+        calculatedFields: this.calculatedFields
       }
       this.$emit('change', config)
       this.$emit('config-change', config)
@@ -1291,92 +934,4 @@ export default {
   color: #f56c6c;
 }
 
-/* 指标面板样式 */
-.metrics-panel {
-  padding: 16px;
-}
-
-.metrics-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 10px;
-}
-
-.metrics-list {
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-.metric-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  margin-bottom: 10px;
-  background: #fff;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.metric-item:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
-}
-
-.metric-drag {
-  cursor: move;
-  color: #909399;
-  font-size: 16px;
-}
-
-.drag-handle {
-  cursor: move;
-}
-
-.metric-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.metric-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.metric-name .name {
-  font-weight: 500;
-  font-size: 14px;
-  color: #303133;
-}
-
-.metric-name .identifier {
-  font-size: 12px;
-  color: #909399;
-}
-
-.metric-sql {
-  font-size: 12px;
-  color: #606266;
-}
-
-.sql-preview {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: 'Courier New', Consolas, monospace;
-  background: #f5f7fa;
-  padding: 2px 6px;
-  border-radius: 2px;
-}
-
-.metric-actions {
-  display: flex;
-  gap: 8px;
-}
 </style>
