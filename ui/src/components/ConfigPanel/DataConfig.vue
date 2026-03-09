@@ -1,99 +1,172 @@
-<template>
+﻿<template>
   <div class="data-config">
     <el-tabs v-model="activeTab" type="border-card">
-      <!-- 数据源配置选项卡 -->
       <el-tab-pane label="数据源配置" name="datasource">
         <el-form :model="dataConfig" label-width="80px" size="small">
-          <!-- 数据源选择 -->
-          <el-form-item label="数据源">
-            <el-select v-model="dataConfig.datasourceId" placeholder="请选择数据源" @change="handleDatasourceChange">
-              <el-option
-                v-for="ds in datasources"
-                :key="ds.id"
-                :label="ds.name || ds.datasourceName || `数据源${ds.id}`"
-                :value="ds.id"
-              />
-            </el-select>
-          </el-form-item>
-
-          <!-- 数据集选择 -->
-          <el-form-item label="数据集">
-            <el-select v-model="dataConfig.datasetId" placeholder="请选择数据集" @change="handleDatasetChange">
-              <el-option
-                v-for="ds in datasets"
-                :key="ds.id"
-                :label="ds.name || ds.datasetName || `数据集${ds.id}`"
-                :value="ds.id"
-              />
-            </el-select>
-          </el-form-item>
-
-          <!-- 字段配置区域 - 左右布局 -->
-          <el-divider>字段配置</el-divider>
-          <div class="field-config-layout">
-            <!-- 左侧：字段配置区 -->
-            <div class="field-config-area">
-              <el-alert
-                title="提示：从右侧字段管理区域拖拽字段到下方配置区"
-                type="info"
-                :closable="false"
-                style="margin-bottom: 15px"
-              />
-
-              <!-- 维度字段 - 只在需要维度的图表类型下显示 -->
-              <el-form-item v-if="requiresDimension" label="维度">
-                <div
-                  class="drop-zone"
-                  :class="{ 'is-over': isDimensionDragOver }"
-                  @drop="handleDrop($event, 'dimension')"
-                  @dragover.prevent="isDimensionDragOver = true"
-                  @dragleave="isDimensionDragOver = false"
-                >
-                  <div v-if="selectedDimensions.length === 0" class="drop-placeholder">
-                    <i class="el-icon-download" style="font-size: 24px; color: #c0c4cc;"></i>
-                    <p>从右侧字段管理区域拖拽维度字段到此处</p>
-                  </div>
-                  <div
-                    v-for="(dim, index) in selectedDimensions"
-                    :key="index"
-                    class="selected-field"
-                  >
-                    <i class="el-icon-s-operation" style="margin-right: 4px; color: #909399;"></i>
-                    <i v-if="dim.isCalculated" class="el-icon-s-operation" style="margin-right: 4px; color: #409eff;"></i>
-                    <span>{{ dim.isCalculated ? dim.alias : (dim.comment || dim.fieldName || dim.name) }}</span>
-                    <i class="el-icon-close" @click="removeDimension(index)"></i>
-                  </div>
-                </div>
+          <div class="dc-toolbar">
+            <div class="dc-toolbar__left">
+              <el-form-item label="数据源" class="dc-toolbar__item">
+                <el-select v-model="dataConfig.datasourceId" placeholder="请选择数据源" @change="handleDatasourceChange">
+                  <el-option
+                    v-for="ds in datasources"
+                    :key="ds.id"
+                    :label="ds.name || ds.datasourceName || `数据源${ds.id}`"
+                    :value="ds.id"
+                  />
+                </el-select>
               </el-form-item>
 
-              <!-- 指标字段 -->
-              <el-form-item label="指标">
-                <div
-                  class="drop-zone"
-                  :class="{ 'is-over': isMetricDragOver }"
-                  @drop="handleDrop($event, 'metric')"
-                  @dragover.prevent="isMetricDragOver = true"
-                  @dragleave="isMetricDragOver = false"
-                >
-                  <div v-if="selectedMetrics.length === 0" class="drop-placeholder">
-                    <i class="el-icon-download" style="font-size: 24px; color: #c0c4cc;"></i>
-                    <p>从右侧字段管理区域拖拽指标字段到此处</p>
-                  </div>
-                  <div
-                    v-for="(metric, index) in selectedMetrics"
-                    :key="index"
-                    class="selected-field"
-                  >
-                    <i class="el-icon-s-operation" style="margin-right: 4px; color: #909399;"></i>
-                    <i v-if="metric.isCalculated" class="el-icon-s-operation" style="margin-right: 4px; color: #409eff;"></i>
-                    <span>{{ metric.isCalculated ? metric.alias : (metric.comment || metric.fieldName || metric.name) }}</span>
-                    <i class="el-icon-close" @click="removeMetric(index)"></i>
-                  </div>
-                </div>
+              <el-form-item label="数据集" class="dc-toolbar__item">
+                <el-select v-model="dataConfig.datasetId" placeholder="请选择数据集" @change="handleDatasetChange">
+                  <el-option
+                    v-for="ds in datasets"
+                    :key="ds.id"
+                    :label="ds.name || ds.datasetName || `数据集${ds.id}`"
+                    :value="ds.id"
+                  />
+                </el-select>
               </el-form-item>
             </div>
 
-            <!-- 右侧：字段管理面板 -->
+            <div class="dc-toolbar__right">
+              <el-button @click="handleRefresh">刷新数据</el-button>
+              <el-button type="primary" @click="handlePreview">预览数据</el-button>
+            </div>
+          </div>
+
+          <div class="dc-main">
+            <div class="dc-cards">
+              <section class="dc-card">
+                <header class="dc-card__header">
+                  <span class="dc-card__title">字段配置</span>
+                </header>
+                <div class="dc-card__body">
+                  <div class="field-config-layout">
+                    <div class="field-config-area">
+                      <el-alert
+                        title="从右侧字段管理中拖拽字段到维度或指标区域"
+                        type="info"
+                        :closable="false"
+                        class="dc-alert"
+                      />
+
+                      <el-form-item v-if="requiresDimension" label="维度">
+                        <div
+                          class="drop-zone"
+                          :class="{ 'is-over': isDimensionDragOver }"
+                          @drop="handleDrop($event, 'dimension')"
+                          @dragover.prevent="isDimensionDragOver = true"
+                          @dragleave="isDimensionDragOver = false"
+                        >
+                          <div v-if="selectedDimensions.length === 0" class="drop-placeholder">
+                            <i class="el-icon-download"></i>
+                            <p>拖拽字段到此区域作为维度</p>
+                          </div>
+                          <div
+                            v-for="(dim, index) in selectedDimensions"
+                            :key="index"
+                            class="selected-field"
+                          >
+                            <i class="el-icon-s-operation selected-field__icon"></i>
+                            <i v-if="dim.isCalculated" class="el-icon-s-operation selected-field__icon selected-field__icon--fx"></i>
+                            <span class="selected-field__text">{{ dim.isCalculated ? dim.alias : (dim.comment || dim.fieldName || dim.name) }}</span>
+                            <i class="el-icon-close selected-field__remove" @click="removeDimension(index)"></i>
+                          </div>
+                        </div>
+                      </el-form-item>
+
+                      <el-form-item label="指标">
+                        <div
+                          class="drop-zone"
+                          :class="{ 'is-over': isMetricDragOver }"
+                          @drop="handleDrop($event, 'metric')"
+                          @dragover.prevent="isMetricDragOver = true"
+                          @dragleave="isMetricDragOver = false"
+                        >
+                          <div v-if="selectedMetrics.length === 0" class="drop-placeholder">
+                            <i class="el-icon-download"></i>
+                            <p>拖拽字段到此区域作为指标</p>
+                          </div>
+                          <div
+                            v-for="(metric, index) in selectedMetrics"
+                            :key="index"
+                            class="selected-field"
+                          >
+                            <i class="el-icon-s-operation selected-field__icon"></i>
+                            <i v-if="metric.isCalculated" class="el-icon-s-operation selected-field__icon selected-field__icon--fx"></i>
+                            <span class="selected-field__text">{{ metric.isCalculated ? metric.alias : (metric.comment || metric.fieldName || metric.name) }}</span>
+                            <i class="el-icon-close selected-field__remove" @click="removeMetric(index)"></i>
+                          </div>
+                        </div>
+                      </el-form-item>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="dc-card">
+                <header class="dc-card__header">
+                  <span class="dc-card__title">筛选条件</span>
+                </header>
+                <div class="dc-card__body">
+                  <el-form-item label="筛选" class="dc-filter-form-item">
+                    <div class="filter-list">
+                      <div
+                        v-for="(filter, index) in dataConfig.filters"
+                        :key="index"
+                        class="filter-item"
+                      >
+                        <el-select
+                          v-model="filter.field"
+                          placeholder="字段"
+                          size="small"
+                          style="width: 140px"
+                        >
+                          <el-option
+                            v-for="field in availableFields"
+                            :key="field.name"
+                            :label="field.comment || field.name"
+                            :value="field.name"
+                          />
+                        </el-select>
+                        <el-select
+                          v-model="filter.operator"
+                          placeholder="运算符"
+                          size="small"
+                          style="width: 110px"
+                        >
+                          <el-option label="等于" value="=" />
+                          <el-option label="不等于" value="!=" />
+                          <el-option label="大于" value=">" />
+                          <el-option label="小于" value="<" />
+                          <el-option label="包含" value="like" />
+                        </el-select>
+                        <el-input
+                          v-model="filter.value"
+                          placeholder="值"
+                          size="small"
+                          style="flex: 1"
+                        />
+                        <el-button
+                          type="text"
+                          icon="el-icon-delete"
+                          @click="removeFilter(index)"
+                        />
+                      </div>
+                      <el-button
+                        type="text"
+                        icon="el-icon-plus"
+                        size="small"
+                        @click="addFilter"
+                      >
+                        添加筛选
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                </div>
+              </section>
+            </div>
+
             <div class="field-management-area" v-if="dataConfig.datasetId">
               <field-management-panel
                 :dataset-id="dataConfig.datasetId"
@@ -107,85 +180,11 @@
               />
             </div>
           </div>
-
-          <!-- 过滤条件 -->
-          <el-divider>过滤条件</el-divider>
-
-          <el-form-item label="过滤">
-            <div class="filter-list">
-              <div
-                v-for="(filter, index) in dataConfig.filters"
-                :key="index"
-                class="filter-item"
-              >
-                <el-select
-                  v-model="filter.field"
-                  placeholder="字段"
-                  size="small"
-                  style="width: 120px"
-                >
-                  <el-option
-                    v-for="field in availableFields"
-                    :key="field.name"
-                    :label="field.comment || field.name"
-                    :value="field.name"
-                  />
-                </el-select>
-                <el-select
-                  v-model="filter.operator"
-                  placeholder="操作符"
-                  size="small"
-                  style="width: 100px"
-                >
-                  <el-option label="等于" value="=" />
-                  <el-option label="不等于" value="!=" />
-                  <el-option label="大于" value=">" />
-                  <el-option label="小于" value="<" />
-                  <el-option label="包含" value="like" />
-                </el-select>
-                <el-input
-                  v-model="filter.value"
-                  placeholder="值"
-                  size="small"
-                  style="flex: 1"
-                />
-                <el-button
-                  type="text"
-                  icon="el-icon-delete"
-                  @click="removeFilter(index)"
-                />
-              </div>
-              <el-button
-                type="text"
-                icon="el-icon-plus"
-                size="small"
-                @click="addFilter"
-              >
-                添加条件
-              </el-button>
-            </div>
-          </el-form-item>
-
-          <!-- 操作按钮 -->
-          <el-form-item>
-            <el-button type="primary" @click="handleRefresh">
-              刷新数据
-            </el-button>
-            <el-button @click="handlePreview">
-              预览数据
-            </el-button>
-          </el-form-item>
         </el-form>
       </el-tab-pane>
-
     </el-tabs>
 
-    <!-- 数据预览对话框 -->
-    <el-dialog
-      title="数据预览"
-      :visible.sync="previewVisible"
-      width="800px"
-    >
+    <el-dialog title="数据预览" :visible.sync="previewVisible" width="800px">
       <el-table :data="previewData" border stripe max-height="400">
         <el-table-column
           v-for="field in previewFields"
@@ -200,7 +199,6 @@
       </div>
     </el-dialog>
 
-    <!-- 计算字段配置对话框 -->
     <calculated-field-dialog
       :visible.sync="calculatedFieldDialogVisible"
       :field="currentEditingCalculatedField"
@@ -242,17 +240,17 @@ export default {
         measures: [],
         metrics: [],
         filters: [],
-        calculatedFields: [] // 计算字段配置
+        calculatedFields: [] // 璁＄畻瀛楁閰嶇疆
       },
-      // 计算字段配置
+      // 璁＄畻瀛楁閰嶇疆
       calculatedFields: [],
       calculatedFieldDialogVisible: false,
       currentEditingCalculatedField: null,
-      // 预览
+      // 棰勮
       previewVisible: false,
       previewData: [],
       previewFields: [],
-      // 拖拽相关
+      // 鎷栨嫿鐩稿叧
       isDimensionDragOver: false,
       isMetricDragOver: false,
       selectedDimensions: [],
@@ -262,39 +260,36 @@ export default {
     }
   },
   computed: {
-    // 判断当前图表类型是否需要维度字段
+    // 鍒ゆ柇褰撳墠鍥捐〃绫诲瀷鏄惁闇€瑕佺淮搴﹀瓧娈?
     requiresDimension() {
       const chartType = this.component?.styleConfig?.chartType
-      // 不需要维度的图表类型：仪表盘、水球图、指标卡等
+      // 涓嶉渶瑕佺淮搴︾殑鍥捐〃绫诲瀷锛氫华琛ㄧ洏銆佹按鐞冨浘銆佹寚鏍囧崱绛?
       const singleValueCharts = ['gauge', 'liquidfill', 'card', 'metricCard']
       return !singleValueCharts.includes(chartType)
     },
-    // 维度字段（通常是字符型或日期型）
+    // 缁村害瀛楁锛堥€氬父鏄瓧绗﹀瀷鎴栨棩鏈熷瀷锛?
     dimensionFields() {
       return this.availableFields.filter(field => {
-        // 优先使用后端分类的fieldType
+        // 浼樺厛浣跨敤鍚庣鍒嗙被鐨刦ieldType
         if (field.fieldType === 'dimension') {
           return true
         }
-        // 兼容处理：检查dataType（原始数据库类型）
+        // 鍏煎澶勭悊锛氭鏌ataType锛堝師濮嬫暟鎹簱绫诲瀷锛?
         const dataType = (field.dataType || field.type || '').toLowerCase()
         return ['varchar', 'char', 'text', 'date', 'datetime', 'timestamp', 'string'].some(t => dataType.includes(t))
       })
     },
-    // 指标字段（通常是数值型）
+    // 鎸囨爣瀛楁锛堥€氬父鏄暟鍊煎瀷锛?
     metricFields() {
-      console.log('[DataConfig] 计算metricFields, availableFields:', this.availableFields)
       return this.availableFields.filter(field => {
-        // 优先使用后端分类的fieldType
+        // 浼樺厛浣跨敤鍚庣鍒嗙被鐨刦ieldType
         if (field.fieldType === 'metric') {
-          console.log('[DataConfig] 字段被分类为metric:', field)
           return true
         }
-        // 兼容处理：检查dataType（原始数据库类型）
+        // 鍏煎澶勭悊锛氭鏌ataType锛堝師濮嬫暟鎹簱绫诲瀷锛?
         const dataType = (field.dataType || field.type || '').toLowerCase()
         const isMetric = ['int', 'bigint', 'decimal', 'double', 'float', 'numeric', 'smallint', 'tinyint', 'real'].some(t => dataType.includes(t))
         if (isMetric) {
-          console.log('[DataConfig] 字段根据dataType被识别为metric:', field)
         }
         return isMetric
       })
@@ -305,7 +300,7 @@ export default {
     this.initDataConfig()
   },
   methods: {
-    // 初始化数据配置
+    // 鍒濆鍖栨暟鎹厤缃?
     initDataConfig() {
       if (this.component.dataConfig) {
         this.dataConfig = {
@@ -318,7 +313,7 @@ export default {
           calculatedFields: this.component.dataConfig.calculatedFields || []
         }
 
-        // 初始化已选字段
+        // 鍒濆鍖栧凡閫夊瓧娈?
         this.selectedDimensions = (this.component.dataConfig.dimensions || []).map(d => {
           if (typeof d === 'string') {
             return { fieldName: d, name: d }
@@ -332,10 +327,9 @@ export default {
           return m
         })
 
-        // 初始化计算字段
-        this.calculatedFields = this.component.dataConfig.calculatedFields || []
+        // 鍒濆鍖栬绠楀瓧娈?        this.calculatedFields = this.component.dataConfig.calculatedFields || []
 
-        // 如果有数据集，加载数据集信息
+        // 濡傛灉鏈夋暟鎹泦锛屽姞杞芥暟鎹泦淇℃伅
         if (this.dataConfig.datasetId) {
           this.loadDatasets(this.dataConfig.datasourceId)
           this.loadDatasetFields(this.dataConfig.datasetId)
@@ -343,17 +337,16 @@ export default {
       }
     },
 
-    // 加载数据源列表
+    // 鍔犺浇鏁版嵁婧愬垪琛?
     async loadDatasources() {
       try {
         const response = await listDataSource({})
         this.datasources = response.rows || []
       } catch (error) {
-        console.error('加载数据源失败:', error)
       }
     },
 
-    // 加载数据集列表
+    // 鍔犺浇鏁版嵁闆嗗垪琛?
     async loadDatasets(datasourceId) {
       if (!datasourceId) {
         this.datasets = []
@@ -363,55 +356,46 @@ export default {
         const response = await listDataset({ datasourceId })
         this.datasets = response.rows || []
       } catch (error) {
-        console.error('加载数据集失败:', error)
       }
     },
 
-    // 加载数据集字段
+    // 鍔犺浇鏁版嵁闆嗗瓧娈?
     async loadDatasetFields(datasetId) {
       if (!datasetId) {
         this.availableFields = []
         return
       }
       try {
-        console.log('[DataConfig] 开始加载数据集字段, datasetId:', datasetId)
         const response = await getDatasetFields(datasetId)
-        console.log('[DataConfig] 字段接口响应:', response)
         
         if (response.code === 200 && response.data) {
-          // 将字段数据映射为统一格式，确保包含所有必要字段
+          // 灏嗗瓧娈垫暟鎹槧灏勪负缁熶竴鏍煎紡锛岀‘淇濆寘鍚墍鏈夊繀瑕佸瓧娈?
           this.availableFields = response.data.map(field => ({
             name: field.name || field.fieldName,
             fieldName: field.fieldName || field.name,
             comment: field.comment || field.fieldComment || field.fieldName || field.name,
-            fieldType: field.fieldType, // 后端分类: 'metric' 或 'dimension'
-            dataType: field.dataType || field.type, // 原始数据库类型
+            fieldType: field.fieldType, // 鍚庣鍒嗙被: 'metric' 鎴?'dimension'
+            dataType: field.dataType || field.type, // 鍘熷鏁版嵁搴撶被鍨?
             type: field.type || field.fieldType
           }))
           
-          console.log('[DataConfig] 加载字段成功, 共', this.availableFields.length, '个字段')
-          console.log('[DataConfig] 字段详情:', this.availableFields)
           
-          // 立即计算并输出指标字段
+          // 绔嬪嵆璁＄畻骞惰緭鍑烘寚鏍囧瓧娈?
           const metrics = this.availableFields.filter(field => {
             if (field.fieldType === 'metric') return true
             const dataType = (field.dataType || '').toLowerCase()
             return ['int', 'bigint', 'decimal', 'double', 'float', 'numeric', 'smallint', 'tinyint', 'real'].some(t => dataType.includes(t))
           })
-          console.log('[DataConfig] 指标字段数量:', metrics.length, '个')
-          console.log('[DataConfig] 指标字段列表:', metrics)
         } else {
-          console.warn('[DataConfig] 字段接口返回异常:', response)
           this.availableFields = []
         }
       } catch (error) {
-        console.error('[DataConfig] 加载字段失败:', error)
-        this.$message.error('加载字段失败: ' + (error.message || '未知错误'))
+        this.$message.error('鍔犺浇瀛楁澶辫触: ' + (error.message || '鏈煡閿欒'))
         this.availableFields = []
       }
     },
 
-    // 数据源变化
+    // 鏁版嵁婧愬彉鍖?
     handleDatasourceChange(datasourceId) {
       this.dataConfig.datasetId = null
       this.dataConfig.dimensions = []
@@ -423,13 +407,12 @@ export default {
       this.emitChange()
     },
 
-    // 数据集变化
+    // 鏁版嵁闆嗗彉鍖?
     handleDatasetChange(datasetId) {
-      // 检查是否有计算字段
       if (this.calculatedFields.length > 0) {
         this.$confirm(
-          '当前图表包含计算字段。切换数据集将清空所有计算字段。是否继续？',
-          '警告',
+          '切换数据集会清空当前已配置的计算字段和已拖拽字段，是否继续？',
+          '提示',
           {
             confirmButtonText: '继续',
             cancelButtonText: '取消',
@@ -438,7 +421,6 @@ export default {
         ).then(() => {
           this.performDatasetChange(datasetId)
         }).catch(() => {
-          // 恢复原数据集选择
           this.$nextTick(() => {
             this.dataConfig.datasetId = this.component.dataConfig?.datasetId || null
           })
@@ -448,7 +430,7 @@ export default {
       }
     },
 
-    // 执行数据集切换
+    // 鎵ц鏁版嵁闆嗗垏鎹?
     performDatasetChange(datasetId) {
       this.dataConfig.dimensions = []
       this.dataConfig.measures = []
@@ -461,7 +443,7 @@ export default {
       this.emitChange()
     },
 
-    // 拖拽开始
+    // 鎷栨嫿寮€濮?
     handleDragStart(event, field, type) {
       this.draggedField = field
       this.dragType = type
@@ -469,42 +451,38 @@ export default {
       event.dataTransfer.setData('text/plain', JSON.stringify({ field, type }))
     },
 
-    // 放置字段
+    // 鏀剧疆瀛楁
     handleDrop(event, targetType) {
       event.preventDefault()
       this.isDimensionDragOver = false
       this.isMetricDragOver = false
 
-      console.log('[DataConfig] handleDrop - targetType:', targetType, 'draggedField:', this.draggedField)
 
       if (!this.draggedField) {
-        console.log('[DataConfig] handleDrop - 没有拖拽的字段')
         return
       }
 
-      // 检查字段类型是否匹配目标区域
-      // 计算字段根据其fieldType决定可以放置的位置
+      // 妫€鏌ュ瓧娈电被鍨嬫槸鍚﹀尮閰嶇洰鏍囧尯鍩?
+      // 璁＄畻瀛楁鏍规嵁鍏秄ieldType鍐冲畾鍙互鏀剧疆鐨勪綅缃?
       const fieldType = this.draggedField.fieldType
       const isCalculatedField = this.draggedField.isCalculated || this.calculatedFields.some(f => f.name === this.draggedField.name)
 
-      console.log('[DataConfig] handleDrop - fieldType:', fieldType, 'isCalculated:', isCalculatedField, 'dragType:', this.dragType)
 
       if (targetType === 'dimension') {
-        // 维度区只接受dimension类型的字段
+        // 缁村害鍖哄彧鎺ュ彈dimension绫诲瀷鐨勫瓧娈?
         if (fieldType !== 'dimension' && this.dragType !== 'dimension') {
-          this.$message.warning('该字段不是维度类型，无法添加到维度区')
-          console.log('[DataConfig] handleDrop - 字段类型不匹配维度区')
+          this.$message.warning('璇ュ瓧娈典笉鏄淮搴︾被鍨嬶紝鏃犳硶娣诲姞鍒扮淮搴﹀尯')
           this.draggedField = null
           this.dragType = null
           return
         }
 
-        // 检查是否已存在
+        // 妫€鏌ユ槸鍚﹀凡瀛樺湪
         const exists = this.selectedDimensions.some(d => 
           (d.fieldName || d.name) === (this.draggedField.fieldName || this.draggedField.name)
         )
         if (!exists) {
-          // 添加字段，确保包含必要信息
+          // 娣诲姞瀛楁锛岀‘淇濆寘鍚繀瑕佷俊鎭?
           const fieldToAdd = {
             ...this.draggedField,
             name: this.draggedField.name || this.draggedField.fieldName,
@@ -513,17 +491,14 @@ export default {
             alias: this.draggedField.alias,
             isCalculated: isCalculatedField
           }
-          console.log('[DataConfig] handleDrop - 添加维度字段:', fieldToAdd)
           this.selectedDimensions.push(fieldToAdd)
           this.syncDimensionsToConfig()
         } else {
-          console.log('[DataConfig] handleDrop - 维度字段已存在')
         }
       } else if (targetType === 'metric') {
-        // 指标区只接受metric类型的字段
+        // 鎸囨爣鍖哄彧鎺ュ彈metric绫诲瀷鐨勫瓧娈?
         if (fieldType !== 'metric' && this.dragType !== 'metric') {
-          this.$message.warning('该字段不是指标类型，无法添加到指标区')
-          console.log('[DataConfig] handleDrop - 字段类型不匹配指标区')
+          this.$message.warning('璇ュ瓧娈典笉鏄寚鏍囩被鍨嬶紝鏃犳硶娣诲姞鍒版寚鏍囧尯')
           this.draggedField = null
           this.dragType = null
           return
@@ -541,11 +516,9 @@ export default {
             alias: this.draggedField.alias,
             isCalculated: isCalculatedField
           }
-          console.log('[DataConfig] handleDrop - 添加指标字段:', fieldToAdd)
           this.selectedMetrics.push(fieldToAdd)
           this.syncMetricsToConfig()
         } else {
-          console.log('[DataConfig] handleDrop - 指标字段已存在')
         }
       }
 
@@ -553,59 +526,57 @@ export default {
       this.dragType = null
     },
 
-    // 移除维度
+    // 绉婚櫎缁村害
     removeDimension(index) {
       this.selectedDimensions.splice(index, 1)
       this.syncDimensionsToConfig()
     },
 
-    // 移除指标
+    // 绉婚櫎鎸囨爣
     removeMetric(index) {
       this.selectedMetrics.splice(index, 1)
       this.syncMetricsToConfig()
     },
 
-    // 同步维度到配置
+    // 鍚屾缁村害鍒伴厤缃?
     syncDimensionsToConfig() {
       this.dataConfig.dimensions = this.selectedDimensions.map(d => ({
-        field: d.fieldName || d.name,  // 修复: 使用 field 而不是 fieldName
-        fieldName: d.fieldName || d.name,  // 保留 fieldName 以兼容
+        field: d.fieldName || d.name,  // 淇: 浣跨敤 field 鑰屼笉鏄?fieldName
+        fieldName: d.fieldName || d.name,  // 淇濈暀 fieldName 浠ュ吋瀹?
         comment: d.comment,
         fieldType: d.fieldType || d.type,
         isCalculated: d.isCalculated || false,
-        // 如果是计算字段，添加额外信息
+        // 濡傛灉鏄绠楀瓧娈碉紝娣诲姞棰濆淇℃伅
         ...(d.isCalculated ? {
           expression: d.expression,
           aggregation: d.aggregation,
           alias: d.alias
         } : {})
       }))
-      console.log('[DataConfig] syncDimensionsToConfig - 同步后的dimensions:', this.dataConfig.dimensions)
       this.emitChange()
     },
 
-    // 同步指标到配置
+    // 鍚屾鎸囨爣鍒伴厤缃?
     syncMetricsToConfig() {
       this.dataConfig.metrics = this.selectedMetrics.map(m => ({
-        field: m.fieldName || m.name,  // 修复: 使用 field 而不是 fieldName
-        fieldName: m.fieldName || m.name,  // 保留 fieldName 以兼容
+        field: m.fieldName || m.name,  // 淇: 浣跨敤 field 鑰屼笉鏄?fieldName
+        fieldName: m.fieldName || m.name,  // 淇濈暀 fieldName 浠ュ吋瀹?
         comment: m.comment,
         fieldType: m.fieldType || m.type,
         isCalculated: m.isCalculated || false,
-        // 如果是计算字段，添加额外信息
+        // 濡傛灉鏄绠楀瓧娈碉紝娣诲姞棰濆淇℃伅
         ...(m.isCalculated ? {
           expression: m.expression,
           aggregation: m.aggregation,
           alias: m.alias
         } : {})
       }))
-      console.log('[DataConfig] syncMetricsToConfig - 同步后的metrics:', this.dataConfig.metrics)
-      // 也同步到 measures 以保持向后兼容
+      // 涔熷悓姝ュ埌 measures 浠ヤ繚鎸佸悜鍚庡吋瀹?
       this.dataConfig.measures = this.dataConfig.metrics
       this.emitChange()
     },
 
-    // 添加过滤条件
+    // 娣诲姞杩囨护鏉′欢
     addFilter() {
       if (!this.dataConfig.filters) {
         this.dataConfig.filters = []
@@ -617,18 +588,18 @@ export default {
       })
     },
 
-    // 删除过滤条件
+    // 鍒犻櫎杩囨护鏉′欢
     removeFilter(index) {
       this.dataConfig.filters.splice(index, 1)
       this.emitChange()
     },
 
-    // 刷新数据
+    // 鍒锋柊鏁版嵁
     handleRefresh() {
       this.$emit('refresh-chart')
     },
 
-    // 预览数据
+    // 棰勮鏁版嵁
     async handlePreview() {
       if (!this.dataConfig.datasetId) {
         this.$message.warning('请先选择数据集')
@@ -649,35 +620,33 @@ export default {
           this.previewVisible = true
         }
       } catch (error) {
-        console.error('预览数据失败:', error)
         this.$message.error('预览数据失败')
       }
     },
 
-    // ========== 计算字段管理方法 ==========
+    // ========== 璁＄畻瀛楁绠＄悊鏂规硶 ==========
 
-    // 添加计算字段
+    // 娣诲姞璁＄畻瀛楁
     handleAddCalculatedField() {
       this.currentEditingCalculatedField = null
       this.calculatedFieldDialogVisible = true
     },
 
-    // 编辑计算字段
+    // 缂栬緫璁＄畻瀛楁
     handleEditCalculatedField(field) {
       this.currentEditingCalculatedField = { ...field }
       this.calculatedFieldDialogVisible = true
     },
 
-    // 删除计算字段
+    // 鍒犻櫎璁＄畻瀛楁
     handleDeleteCalculatedField(field) {
-      // 检查字段是否在使用中
       const isUsedInDimensions = this.selectedDimensions.some(d => d.name === field.name)
       const isUsedInMetrics = this.selectedMetrics.some(m => m.name === field.name)
 
       if (isUsedInDimensions || isUsedInMetrics) {
         this.$confirm(
-          `计算字段 "${field.alias}" 正在图表配置中使用。删除后图表可能无法正常显示，是否继续？`,
-          '警告',
+          `计算字段“${field.alias}”已在维度或指标中使用，删除后会同步移除对应配置，是否继续？`,
+          '提示',
           {
             confirmButtonText: '确定',
             cancelButtonText: '取消',
@@ -685,42 +654,36 @@ export default {
           }
         ).then(() => {
           this.performDeleteCalculatedField(field)
-        }).catch(() => {
-          // 取消删除
-        })
+        }).catch(() => {})
       } else {
-        this.$confirm(`确定要删除计算字段 "${field.alias}" 吗？`, '提示', {
+        this.$confirm(`确定删除计算字段“${field.alias}”吗？`, '提示', {
           confirmButtonText: '确定',
           cancelButtonText: '取消',
           type: 'warning'
         }).then(() => {
           this.performDeleteCalculatedField(field)
-        }).catch(() => {
-          // 取消删除
-        })
+        }).catch(() => {})
       }
     },
 
-    // 执行删除计算字段
+    // 鎵ц鍒犻櫎璁＄畻瀛楁
     performDeleteCalculatedField(field) {
       const index = this.calculatedFields.findIndex(f => f.name === field.name)
       if (index >= 0) {
         this.calculatedFields.splice(index, 1)
         
-        // 从已选字段中移除
+        // 浠庡凡閫夊瓧娈典腑绉婚櫎
         this.selectedDimensions = this.selectedDimensions.filter(d => d.name !== field.name)
         this.selectedMetrics = this.selectedMetrics.filter(m => m.name !== field.name)
         
         this.syncDimensionsToConfig()
         this.syncMetricsToConfig()
-        this.$message.success('删除成功')
+        this.$message.success('鍒犻櫎鎴愬姛')
       }
     },
 
-    // 计算字段提交
+    // 璁＄畻瀛楁鎻愪氦
     handleCalculatedFieldSubmit(fieldConfig) {
-      console.log('[DataConfig] 计算字段提交:', fieldConfig)
-      console.log('[DataConfig] 当前计算字段列表:', this.calculatedFields)
       
       const existingIndex = this.calculatedFields.findIndex(f => f.name === fieldConfig.name)
       
@@ -730,62 +693,56 @@ export default {
       }
 
       if (this.currentEditingCalculatedField) {
-        // 编辑模式
+        // 缂栬緫妯″紡
         const index = this.calculatedFields.findIndex(f => f.name === this.currentEditingCalculatedField.name)
         if (index >= 0) {
           this.$set(this.calculatedFields, index, fieldConfig)
-          console.log('[DataConfig] 计算字段更新成功，新列表:', this.calculatedFields)
           this.$message.success('计算字段更新成功')
         }
       } else {
-        // 新增模式
+        // 鏂板妯″紡
         this.calculatedFields.push(fieldConfig)
-        console.log('[DataConfig] 计算字段添加成功，新列表:', this.calculatedFields)
-        this.$message.success('计算字段添加成功')
+        this.$message.success('计算字段新增成功')
       }
 
       this.calculatedFieldDialogVisible = false
       this.emitChange()
       
-      // 强制更新视图
+      // 寮哄埗鏇存柊瑙嗗浘
       this.$nextTick(() => {
-        console.log('[DataConfig] nextTick后的计算字段列表:', this.calculatedFields)
         this.$forceUpdate()
       })
     },
 
-    // 字段拖拽开始（来自FieldManagementPanel）
+    // 瀛楁鎷栨嫿寮€濮嬶紙鏉ヨ嚜FieldManagementPanel锛?
     handleFieldDragStart(dragData) {
-      console.log('[DataConfig] handleFieldDragStart 接收到:', dragData)
       
-      // dragData 结构: { field, type, source }
+      // dragData 缁撴瀯: { field, type, source }
       const field = dragData.field
       const type = dragData.type
       
-      // 对于计算字段，使用其 fieldType 属性
+      // 瀵逛簬璁＄畻瀛楁锛屼娇鐢ㄥ叾 fieldType 灞炴€?
       if (type === 'calculated') {
         this.draggedField = {
           ...field,
-          fieldType: field.fieldType, // 'dimension' 或 'metric'
+          fieldType: field.fieldType, // 'dimension' 鎴?'metric'
           name: field.name,
           alias: field.alias,
           comment: field.alias,
           isCalculated: true
         }
-        this.dragType = field.fieldType // 使用计算字段的实际类型
-        console.log('[DataConfig] 计算字段拖拽，类型:', field.fieldType, '字段:', this.draggedField)
+        this.dragType = field.fieldType // 浣跨敤璁＄畻瀛楁鐨勫疄闄呯被鍨?
       } else {
-        // 普通字段
+        // 鏅€氬瓧娈?
         this.draggedField = {
           ...field,
           fieldType: type
         }
         this.dragType = type
-        console.log('[DataConfig] 普通字段拖拽，类型:', type, '字段:', this.draggedField)
       }
     },
 
-    // 触发配置变化事件
+    // 瑙﹀彂閰嶇疆鍙樺寲浜嬩欢
     emitChange() {
       const config = {
         datasourceId: this.dataConfig.datasourceId,
@@ -813,24 +770,132 @@ export default {
 
 <style scoped>
 .data-config {
-  padding: 16px;
+  --bg-page: #f4f6f9;
+  --bg-card: #ffffff;
+  --bg-subtle: #f8fafc;
+  --border: #dfe5ee;
+  --text-main: #1f2d3d;
+  --text-secondary: #5b6b7c;
+  --primary: #2f6fed;
+  --primary-soft: #eaf1ff;
+
   width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  background: var(--bg-page);
+}
+
+.data-config :deep(.el-tabs--border-card) {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.data-config :deep(.el-tabs--border-card > .el-tabs__content) {
+  padding: 8px;
+  background: transparent;
+  overflow-x: hidden;
+}
+
+.data-config :deep(.el-tabs--border-card > .el-tabs__header) {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.dc-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  margin-bottom: 12px;
+}
+
+.dc-toolbar__left {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dc-toolbar__item {
+  margin-bottom: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.dc-toolbar__item :deep(.el-select) {
+  width: 100%;
+}
+
+.dc-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dc-main {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-direction: row;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   box-sizing: border-box;
 }
 
-.el-tabs {
-  width: 100%;
+.dc-cards {
+  width: 228px;
+  min-width: 228px;
+  max-width: 228px;
+  flex: 0 0 228px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
 }
 
-.el-form-item {
-  margin-bottom: 16px;
+.dc-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-card);
 }
 
-/* 字段配置布局 */
+.dc-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0 12px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+}
+
+.dc-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.dc-card__body {
+  padding: 12px;
+}
+
+.dc-alert {
+  margin-bottom: 10px;
+}
+
 .field-config-layout {
   display: flex;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 0;
 }
 
 .field-config-area {
@@ -839,18 +904,28 @@ export default {
 }
 
 .field-management-area {
-  width: 280px;
-  flex-shrink: 0;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
+  width: 148px;
+  min-width: 148px;
+  max-width: 148px;
+  flex: 0 0 148px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
   overflow: hidden;
-  background: #fff;
+  max-height: calc(100vh - 260px);
+  box-sizing: border-box;
 }
 
-.unit {
-  margin-left: 8px;
-  color: #909399;
-  font-size: 12px;
+.data-config :deep(.el-form-item) {
+  margin-bottom: 10px;
+}
+
+.field-management-area :deep(.field-management-panel) {
+  height: 100%;
+}
+
+.dc-filter-form-item {
+  margin-bottom: 0;
 }
 
 .filter-list {
@@ -860,8 +935,13 @@ export default {
 .filter-item {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-subtle);
 }
 
 .filter-item > * {
@@ -869,27 +949,22 @@ export default {
 }
 
 .filter-item .el-input {
-  flex: 1;
+  flex: 1 1 180px;
   min-width: 0;
 }
 
-.el-divider {
-  margin: 16px 0;
-}
-
-/* 拖放区域样式 */
 .drop-zone {
-  min-height: 150px;
-  border: 2px dashed #dcdfe6;
-  border-radius: 4px;
+  min-height: 126px;
+  border: 1px dashed #c9d5e6;
+  border-radius: 6px;
   padding: 8px;
-  background: #fff;
-  transition: all 0.3s;
+  background: #fcfdff;
+  transition: border-color 0.2s, background-color 0.2s;
 }
 
 .drop-zone.is-over {
-  border-color: #409eff;
-  background: #ecf5ff;
+  border-color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .drop-placeholder {
@@ -897,11 +972,14 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  min-height: 130px;
-  color: #c0c4cc;
-  font-size: 13px;
-  gap: 8px;
+  min-height: 106px;
+  color: #9aa7b6;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.drop-placeholder i {
+  font-size: 20px;
 }
 
 .drop-placeholder p {
@@ -912,26 +990,93 @@ export default {
 .selected-field {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 6px 8px;
   margin-bottom: 6px;
-  background: #f0f9ff;
-  border: 1px solid #b3d8ff;
-  border-radius: 3px;
-  font-size: 13px;
-  color: #409eff;
+  border: 1px solid #cddcf6;
+  border-radius: 6px;
+  background: #f2f7ff;
+  color: #31548f;
+  font-size: 12px;
 }
 
-.selected-field i {
+.selected-field:last-child {
+  margin-bottom: 0;
+}
+
+.selected-field__icon {
+  color: #8095b0;
+  font-size: 12px;
+}
+
+.selected-field__icon--fx {
+  color: var(--primary);
+}
+
+.selected-field__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-field__remove {
+  color: #8c9cb0;
   cursor: pointer;
-  font-size: 14px;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  transition: color 0.2s;
 }
 
-.selected-field i:hover {
-  opacity: 1;
+.selected-field__remove:hover {
   color: #f56c6c;
 }
 
+@media (max-width: 1200px) {
+  .dc-main {
+    flex-direction: column;
+  }
+
+  .dc-cards {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .field-management-area {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .dc-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dc-toolbar__left {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dc-toolbar__item {
+    width: 100%;
+  }
+
+  .dc-toolbar__right {
+    justify-content: flex-end;
+  }
+}
 </style>
+
+
+
+
+
+
+
+
+
+

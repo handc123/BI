@@ -226,8 +226,10 @@ export default {
 
 /* 确保所有子组件都是固定 400px 宽度 */
 .config-tabs >>> .el-tab-pane > div {
-  width: 400px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
-  flex-shrink: 0;
+  flex-shrink: 1;
 }
 </style>

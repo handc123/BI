@@ -1,11 +1,14 @@
-<template>
+﻿<template>
   <div class="field-management-panel">
     <div class="panel-header">
-      <span class="panel-title">字段管理</span>
+      <div class="panel-header__main">
+        <span class="panel-title">字段管理</span>
+        <span class="panel-subtitle">拖拽字段到左侧配置区</span>
+      </div>
+      <span class="panel-total">{{ dimensionFields.length + metricFields.length + calculatedFields.length }}</span>
     </div>
 
     <div class="field-sections">
-      <!-- 维度字段 -->
       <div class="field-section">
         <div class="section-header" @click="toggleSection('dimension')">
           <i :class="sectionExpanded.dimension ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
@@ -35,7 +38,6 @@
         </transition>
       </div>
 
-      <!-- 指标字段 -->
       <div class="field-section">
         <div class="section-header" @click="toggleSection('metric')">
           <i :class="sectionExpanded.metric ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
@@ -65,7 +67,6 @@
         </transition>
       </div>
 
-      <!-- 计算字段 -->
       <div class="field-section">
         <div class="section-header" @click="toggleSection('calculated')">
           <i :class="sectionExpanded.calculated ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
@@ -158,7 +159,7 @@ export default {
   watch: {
     calculatedFields: {
       handler(newVal) {
-        console.log('[FieldManagementPanel] calculatedFields 变化:', newVal)
+        console.log('[FieldManagementPanel] calculatedFields 鍙樺寲:', newVal)
       },
       immediate: true,
       deep: true
@@ -175,7 +176,7 @@ export default {
         type: type,
         source: 'fieldManagement'
       };
-      console.log('[FieldManagementPanel] 发送 field-drag-start 事件:', dragData)
+      console.log('[FieldManagementPanel] 鍙戦€?field-drag-start 浜嬩欢:', dragData)
       this.$emit('field-drag-start', dragData);
       // Store in dataTransfer for compatibility
       event.dataTransfer.effectAllowed = 'copy';
@@ -191,9 +192,9 @@ export default {
       this.$emit('edit-calculated-field', field);
     },
     handleDeleteField(field) {
-      this.$confirm(`确定要删除计算字段"${field.alias}"吗?`, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+      this.$confirm(`纭畾瑕佸垹闄よ绠楀瓧娈?${field.alias}"鍚?`, '鎻愮ず', {
+        confirmButtonText: '纭畾',
+        cancelButtonText: '鍙栨秷',
         type: 'warning'
       }).then(() => {
         this.$emit('delete-calculated-field', field);
@@ -211,85 +212,123 @@ export default {
   background: #fff;
 
   .panel-header {
-    padding: 12px 16px;
-    border-bottom: 1px solid #e4e7ed;
-    background: #f5f7fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #dfe5ee;
+    background: #f8fafc;
+
+    .panel-header__main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
 
     .panel-title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
-      color: #303133;
+      color: #1f2d3d;
+      line-height: 1.2;
+    }
+
+    .panel-subtitle {
+      font-size: 12px;
+      color: #5b6b7c;
+      line-height: 1.2;
+      display: none;
+    }
+
+    .panel-total {
+      min-width: 26px;
+      height: 22px;
+      padding: 0 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #d5dfee;
+      border-radius: 11px;
+      background: #fff;
+      color: #31548f;
+      font-size: 12px;
+      font-weight: 600;
     }
   }
 
   .field-sections {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 8px 0;
+    padding: 6px;
   }
 
   .field-section {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    border: 1px solid #e3e9f2;
+    border-radius: 8px;
+    background: #fff;
 
     .section-header {
-      padding: 8px 16px;
-      font-size: 13px;
+      padding: 7px 8px;
+      font-size: 12px;
       font-weight: 600;
-      color: #606266;
+      color: #3c4e67;
       display: flex;
       align-items: center;
       gap: 6px;
       cursor: pointer;
       user-select: none;
-      transition: background 0.2s;
+      transition: background-color 0.18s;
 
       &:hover {
-        background: #f5f7fa;
+        background: #f7faff;
       }
 
       i {
-        font-size: 14px;
-        transition: transform 0.3s;
+        font-size: 12px;
+        color: #6f8198;
       }
 
       .field-count {
         margin-left: auto;
         font-size: 12px;
-        color: #909399;
-        font-weight: normal;
+        color: #7b8da5;
+        font-weight: 500;
       }
     }
 
     .field-list {
-      padding: 0 8px;
+      padding: 0 4px 6px;
     }
 
     .field-item {
-      padding: 8px 12px;
-      margin: 4px 0;
-      border-radius: 4px;
+      padding: 6px 6px;
+      margin: 5px 0 0;
+      border-radius: 6px;
       cursor: move;
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.2s;
-      background: #f9fafc;
-      border: 1px solid #e4e7ed;
+      transition: border-color 0.18s, background-color 0.18s;
+      background: #f9fbff;
+      border: 1px solid #dfe7f3;
 
       &:hover {
-        background: #ecf5ff;
-        border-color: #409eff;
+        background: #edf4ff;
+        border-color: #b8cbf0;
       }
 
       i {
-        font-size: 12px;
-        color: #909399;
+        font-size: 11px;
+        color: #7e90a8;
       }
 
       .field-name {
         flex: 1;
-        font-size: 13px;
-        color: #606266;
+        font-size: 12px;
+        color: #3f526b;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -297,19 +336,18 @@ export default {
 
       &.calculated-field {
         cursor: pointer;
-        position: relative;
 
         .fx-icon {
-          color: #409eff;
+          color: #2f6fed;
           font-weight: bold;
         }
 
         .delete-btn {
           opacity: 0;
           padding: 0;
-          font-size: 14px;
+          font-size: 12px;
           color: #f56c6c;
-          transition: opacity 0.2s;
+          transition: opacity 0.18s;
         }
 
         &:hover .delete-btn {
@@ -319,28 +357,32 @@ export default {
     }
 
     .empty-hint {
-      padding: 16px 12px;
+      padding: 12px 10px;
       text-align: center;
       font-size: 12px;
-      color: #909399;
+      color: #8fa0b6;
     }
 
     .add-field-btn {
-      width: calc(100% - 16px);
-      margin: 8px 8px 0;
+      width: calc(100% - 12px);
+      margin: 6px;
+      border-radius: 6px;
     }
   }
 }
 
-/* 展开/折叠动画 */
-.slide-enter-active, .slide-leave-active {
-  transition: all 0.3s ease;
+.slide-enter-active,
+.slide-leave-active {
+  transition: max-height 0.18s ease, opacity 0.18s ease;
   max-height: 1000px;
   overflow: hidden;
 }
 
-.slide-enter, .slide-leave-to {
+.slide-enter,
+.slide-leave-to {
   max-height: 0;
   opacity: 0;
 }
 </style>
+
+
