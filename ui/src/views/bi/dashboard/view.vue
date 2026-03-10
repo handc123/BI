@@ -303,16 +303,16 @@ export default {
     },
 
     // 处理指标点击事件
-    handleMetricClick(metricId) {
+    handleMetricClick(metricId, componentId) {
       console.log('[DashboardView] 点击指标:', metricId)
       if (!metricId) {
         return
       }
-      this.navigateToDrill(metricId)
+      this.navigateToDrill(metricId, componentId)
     },
 
     // 处理多指标点击事件
-    handleMultiMetricClick(metricIds, metricList) {
+    handleMultiMetricClick(metricIds, metricList, componentId) {
       console.log('[DashboardView] ===== 收到 multi-metric-click 事件 =====')
       console.log('[DashboardView] metricIds:', metricIds)
       console.log('[DashboardView] metricList:', metricList)
@@ -323,14 +323,17 @@ export default {
       }
 
       // 多指标场景默认取首个（ChartWidget 应确保点击线对应指标排在首位）
-      this.navigateToDrill(metricIds[0])
+      this.navigateToDrill(metricIds[0], componentId)
     },
 
-    navigateToDrill(metricId) {
+    navigateToDrill(metricId, componentId) {
       const snapshot = this.queryParams || {}
       const query = {
         metricId: String(metricId),
-        querySnapshot: encodeURIComponent(JSON.stringify(snapshot))
+        querySnapshot: JSON.stringify(snapshot)
+      }
+      if (componentId !== undefined && componentId !== null) {
+        query.componentId = String(componentId)
       }
 
       // 常用透传字段（机构/日期）做便捷展示

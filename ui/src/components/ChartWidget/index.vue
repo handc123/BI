@@ -1133,7 +1133,7 @@ export default {
         console.log('[ChartWidget] 发现多指标配置，触发 multi-metric-click')
         console.log('[ChartWidget] metricIds:', configMetricIds)
         console.log('[ChartWidget] metricList:', configMetricList)
-        this.$emit('multi-metric-click', configMetricIds, configMetricList || [])
+        this.$emit('multi-metric-click', configMetricIds, configMetricList || [], this.config.id)
         return
       }
 
@@ -1141,7 +1141,7 @@ export default {
       const metricId = this.config.dataConfig?.metricId
       if (metricId) {
         console.log('[ChartWidget] 点击图表，打开单指标详情:', metricId)
-        this.$emit('metric-click', metricId)
+        this.$emit('metric-click', metricId, this.config.id)
         return
       }
 
@@ -1195,7 +1195,7 @@ export default {
             metricList,
             count: matchedMetrics.length
           })
-          this.$emit('multi-metric-click', matchedMetrics, metricList)
+          this.$emit('multi-metric-click', matchedMetrics, metricList, this.config.id)
           console.log('[ChartWidget] multi-metric-click 事件已发送')
         } else {
           // 未找到匹配的指标
