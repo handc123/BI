@@ -76,22 +76,39 @@
         <el-button type="primary" size="small" @click="handleQuery">查询</el-button>
         <el-button size="small" @click="handleReset">重置</el-button>
       </div>
-      <el-table :data="tableData" border size="mini">
-        <el-table-column prop="field" label="字段" />
-        <el-table-column prop="value" label="值" />
+      <el-table :data="tableData" border size="mini" v-loading="loading">
+        <el-table-column
+          v-for="col in tableColumns"
+          :key="col"
+          :prop="col"
+          :label="col"
+          min-width="120"
+        />
       </el-table>
+      <div class="pagination-wrap">
+        <el-pagination
+          background
+          layout="total, prev, pager, next"
+          :total="total"
+          :current-page.sync="pageNum"
+          :page-size="pageSize"
+          @current-change="handleQuery"
+        />
+      </div>
     </el-card>
   </div>
 </template>
 
 <script>
-import { getMetricMetadata } from '@/api/bi/metadata'
+import { getDrillConfig, queryDrillDetail } from '@/api/bi/drill'
 import { parseMetricConditions } from '@/utils/metricExpressionParser'
 
 export default {
   name: 'DashboardDrill',
   data() {
     return {
+      loading: false,
+      drillConfig: null,
       inheritedFormulaConditions: [],
       formulaParseError: '',
       ruleGroups: [
@@ -101,7 +118,11 @@ export default {
           rules: [{ id: Date.now() + 1, field: '', operator: '=', value: '' }]
         }
       ],
-      tableData: []
+      tableData: [],
+      tableColumns: [],
+      total: 0,
+      pageNum: 1,
+      pageSize: 20
     }
   },
   computed: {
@@ -137,6 +158,12 @@ export default {
       return items
     },
     fieldOptions() {
+      if (this.drillConfig && Array.isArray(this.drillConfig.fields) && this.drillConfig.fields.length > 0) {
+        return this.drillConfig.fields.map(f => ({
+          label: f.comment || f.fieldComment || f.fieldName || f.dbFieldName || f.field || '',
+          value: f.dbFieldName || f.fieldName || f.field || ''
+        })).filter(f => f.value)
+      }
       return [
         { label: '数据报送机构ID', value: 'sjbsjgid' },
         { label: '五级分类', value: 'wjfl' },
@@ -161,7 +188,7 @@ export default {
     }
   },
   created() {
-    this.loadFormulaConditions()
+    this.initPage()
   },
   methods: {
     goBack() {
@@ -181,18 +208,34 @@ export default {
       }
     },
 
-    async loadFormulaConditions() {
+    async initPage() {
       const metricId = this.$route.query && this.$route.query.metricId
       if (!metricId) {
         return
       }
+      await this.loadDrillConfig(metricId)
+      this.loadFormulaConditions()
+      this.handleQuery()
+    },
+
+    async loadDrillConfig(metricId) {
+      try {
+        const res = await getDrillConfig(metricId)
+        if (res.code === 200 && res.data) {
+          this.drillConfig = res.data
+        }
+      } catch (e) {
+        this.$message.error('加载穿透配置失败')
+      }
+    },
+
+    async loadFormulaConditions() {
+      if (!this.drillConfig) {
+        return
+      }
 
       try {
-        const res = await getMetricMetadata(metricId)
-        if (res.code !== 200 || !res.data) {
-          return
-        }
-        const expression = res.data.technicalFormula || res.data.calculationLogic || ''
+        const expression = this.drillConfig.technicalFormula || this.drillConfig.calculationLogic || ''
         const parsed = parseMetricConditions(expression)
         if (parsed.ok) {
           this.inheritedFormulaConditions = parsed.conditions
@@ -243,19 +286,70 @@ export default {
       group.rules.splice(index, 1)
     },
 
-    handleQuery() {
-      // 占位：后续接入后端明细查询接口
-      const payload = {
-        metricId: this.$route.query.metricId,
-        inheritedConditions: this.inheritedChartConditions,
-        formulaConditions: this.inheritedFormulaConditions,
-        ruleGroups: this.ruleGroups
+    handleQuery(page) {
+      if (page && Number(page) > 0) {
+        this.pageNum = Number(page)
       }
-      console.log('[DrillDetail] 查询payload:', payload)
-      this.tableData = [
-        { field: 'metricId', value: payload.metricId || '-' },
-        { field: '条件组数', value: String(payload.ruleGroups.length) }
-      ]
+      this.loading = true
+      const querySnapshot = this.parseQuerySnapshot(this.$route.query.querySnapshot)
+      const inheritedConditions = []
+      Object.keys(querySnapshot || {}).forEach(key => {
+        const value = querySnapshot[key]
+        if (value === undefined || value === null || value === '') return
+        inheritedConditions.push({
+          field: key,
+          operator: '=',
+          value
+        })
+      })
+
+      this.inheritedFormulaConditions.forEach(c => {
+        const op = String(c.operator || '').toUpperCase()
+        const condition = {
+          field: c.field,
+          operator: op,
+          value: Array.isArray(c.value) ? null : c.value
+        }
+        if (Array.isArray(c.value)) {
+          condition.values = c.value
+        }
+        inheritedConditions.push(condition)
+      })
+
+      const payload = {
+        metricId: Number(this.$route.query.metricId),
+        dashboardId: Number(this.$route.params.dashboardId),
+        componentId: this.$route.query.componentId ? Number(this.$route.query.componentId) : null,
+        datasetId: this.drillConfig ? this.drillConfig.datasetId : null,
+        inheritedConditions,
+        ruleGroups: this.ruleGroups.map(g => ({
+          relationWithPrev: g.relationWithPrev,
+          rules: g.rules
+            .filter(r => r.field && r.operator)
+            .map(r => ({
+              field: r.field,
+              operator: r.operator,
+              value: r.value
+            }))
+        })),
+        pageNum: this.pageNum,
+        pageSize: this.pageSize
+      }
+      queryDrillDetail(payload).then(res => {
+        if (res.code === 200 && res.data) {
+          this.tableData = res.data.rows || []
+          this.total = res.data.total || 0
+          if (this.tableData.length > 0) {
+            this.tableColumns = Object.keys(this.tableData[0])
+          } else {
+            this.tableColumns = []
+          }
+        }
+      }).catch(() => {
+        this.$message.error('明细查询失败')
+      }).finally(() => {
+        this.loading = false
+      })
     },
 
     handleReset() {
@@ -267,6 +361,9 @@ export default {
         }
       ]
       this.tableData = []
+      this.tableColumns = []
+      this.total = 0
+      this.pageNum = 1
     }
   }
 }
@@ -365,6 +462,11 @@ export default {
 .rule-actions,
 .result-actions {
   margin-bottom: 10px;
+}
+
+.pagination-wrap {
+  margin-top: 10px;
+  text-align: right;
 }
 
 .empty-hint {
