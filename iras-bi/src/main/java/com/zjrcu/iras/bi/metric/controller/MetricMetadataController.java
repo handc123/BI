@@ -101,6 +101,16 @@ public class MetricMetadataController extends BaseController {
     }
 
     /**
+     * 查询当前机构在指定数据集下可用的指标
+     */
+    @PreAuthorize("@ss.hasPermi('bi:metadata:query')")
+    @Operation(description = "查询当前机构在指定数据集下可用的指标")
+    @GetMapping("/available")
+    public AjaxResult available(@RequestParam("datasetId") Long datasetId) {
+        return success(metricMetadataService.selectAvailableMetricsByDataset(datasetId));
+    }
+
+    /**
      * 新增指标元数据
      */
     @PreAuthorize("@ss.hasPermi('bi:metadata:add')")

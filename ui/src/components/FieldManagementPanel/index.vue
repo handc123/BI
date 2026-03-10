@@ -5,7 +5,7 @@
         <span class="panel-title">字段管理</span>
         <span class="panel-subtitle">拖拽字段到左侧配置区</span>
       </div>
-      <span class="panel-total">{{ dimensionFields.length + metricFields.length + calculatedFields.length }}</span>
+      <span class="panel-total">{{ dimensionFields.length + metadataMetricFieldsNormalized.length + datasetMetricFields.length + calculatedFields.length }}</span>
     </div>
 
     <div class="field-sections">
@@ -17,13 +17,13 @@
           <span class="field-count">({{ dimensionFields.length }})</span>
         </div>
         <transition name="slide">
-          <div v-show="sectionExpanded.dimension" class="field-list">
+          <div v-show="sectionExpanded.dimension" class="field-list field-list--scroll">
             <div
               v-for="field in dimensionFields"
               :key="field.name"
               class="field-item"
               draggable="true"
-              @dragstart="handleDragStart(field, 'dimension')"
+              @dragstart="handleDragStart($event, field, 'dimension')"
               @dragend="handleDragEnd"
             >
               <i class="el-icon-s-operation"></i>
@@ -43,25 +43,46 @@
           <i :class="sectionExpanded.metric ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
           <i class="el-icon-s-data"></i>
           <span>指标字段</span>
-          <span class="field-count">({{ metricFields.length }})</span>
+          <span class="field-count">({{ metadataMetricFieldsNormalized.length + datasetMetricFields.length }})</span>
         </div>
         <transition name="slide">
-          <div v-show="sectionExpanded.metric" class="field-list">
+          <div v-show="sectionExpanded.metric" class="field-list field-list--scroll">
+            <div class="subgroup-title">元数据指标</div>
             <div
-              v-for="field in metricFields"
-              :key="field.name"
+              v-for="field in metadataMetricFieldsNormalized"
+              :key="`meta-${field.metricId || field.name}`"
               class="field-item"
               draggable="true"
-              @dragstart="handleDragStart(field, 'metric')"
+              @dragstart="handleDragStart($event, field, 'metric')"
               @dragend="handleDragEnd"
             >
               <i class="el-icon-s-operation"></i>
               <span class="field-name" :title="`${field.comment} (${field.name})`">
                 {{ field.comment || field.name }}
               </span>
+              <span class="source-tag source-tag--meta">元数据</span>
             </div>
-            <div v-if="metricFields.length === 0" class="empty-hint">
-              暂无指标字段
+            <div v-if="metadataMetricFieldsNormalized.length === 0" class="empty-hint">
+              暂无元数据指标
+            </div>
+
+            <div class="subgroup-title">数据集字段</div>
+            <div
+              v-for="field in datasetMetricFields"
+              :key="`raw-${field.name}`"
+              class="field-item"
+              draggable="true"
+              @dragstart="handleDragStart($event, field, 'metric')"
+              @dragend="handleDragEnd"
+            >
+              <i class="el-icon-s-operation"></i>
+              <span class="field-name" :title="`${field.comment} (${field.name})`">
+                {{ field.comment || field.name }}
+              </span>
+              <span class="source-tag">字段</span>
+            </div>
+            <div v-if="datasetMetricFields.length === 0" class="empty-hint">
+              暂无数据集指标字段
             </div>
           </div>
         </transition>
@@ -76,13 +97,13 @@
         </div>
         <transition name="slide">
           <div v-show="sectionExpanded.calculated">
-            <div class="field-list">
+            <div class="field-list field-list--scroll">
               <div
                 v-for="field in calculatedFields"
                 :key="field.name"
                 class="field-item calculated-field"
                 draggable="true"
-                @dragstart="handleDragStart(field, 'calculated')"
+                @dragstart="handleDragStart($event, field, 'calculated')"
                 @dragend="handleDragEnd"
                 @click="handleEditField(field)"
               >
@@ -130,6 +151,10 @@ export default {
       type: Array,
       default: () => []
     },
+    metadataMetricFields: {
+      type: Array,
+      default: () => []
+    },
     calculatedFields: {
       type: Array,
       default: () => []
@@ -150,58 +175,58 @@ export default {
   },
   computed: {
     dimensionFields() {
-      return this.datasetFields.filter(field => field.fieldType === 'dimension');
+      return this.datasetFields.filter(field => field.fieldType === 'dimension')
     },
-    metricFields() {
-      return this.datasetFields.filter(field => field.fieldType === 'metric');
-    }
-  },
-  watch: {
-    calculatedFields: {
-      handler(newVal) {
-        console.log('[FieldManagementPanel] calculatedFields 鍙樺寲:', newVal)
-      },
-      immediate: true,
-      deep: true
+    datasetMetricFields() {
+      return this.datasetFields.filter(field => field.fieldType === 'metric')
+    },
+    metadataMetricFieldsNormalized() {
+      return (this.metadataMetricFields || []).map(field => ({
+        ...field,
+        sourceType: 'metadata',
+        fieldType: 'metric'
+      }))
     }
   },
   methods: {
     toggleSection(section) {
       this.sectionExpanded[section] = !this.sectionExpanded[section]
     },
-    handleDragStart(field, type) {
-      console.log('[FieldManagementPanel] handleDragStart - field:', field, 'type:', type)
+    handleDragStart(event, field, type) {
       const dragData = {
-        field: field,
-        type: type,
+        field: {
+          ...field,
+          sourceType: field.sourceType || (type === 'metric' && field.metricId ? 'metadata' : 'dataset')
+        },
+        type,
         source: 'fieldManagement'
-      };
-      console.log('[FieldManagementPanel] 鍙戦€?field-drag-start 浜嬩欢:', dragData)
-      this.$emit('field-drag-start', dragData);
-      // Store in dataTransfer for compatibility
-      event.dataTransfer.effectAllowed = 'copy';
-      event.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+      }
+      this.$emit('field-drag-start', dragData)
+      if (event && event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'copy'
+        event.dataTransfer.setData('text/plain', JSON.stringify(dragData))
+      }
     },
     handleDragEnd() {
-      this.$emit('field-drag-end');
+      this.$emit('field-drag-end')
     },
     handleAddField() {
-      this.$emit('add-calculated-field');
+      this.$emit('add-calculated-field')
     },
     handleEditField(field) {
-      this.$emit('edit-calculated-field', field);
+      this.$emit('edit-calculated-field', field)
     },
     handleDeleteField(field) {
-      this.$confirm(`纭畾瑕佸垹闄よ绠楀瓧娈?${field.alias}"鍚?`, '鎻愮ず', {
-        confirmButtonText: '纭畾',
-        cancelButtonText: '鍙栨秷',
+      this.$confirm(`确定要删除计算字段“${field.alias}”吗？`, '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
-        this.$emit('delete-calculated-field', field);
-      }).catch(() => {});
+        this.$emit('delete-calculated-field', field)
+      }).catch(() => {})
     }
   }
-};
+}
 </script>
 
 <style scoped lang="scss">
@@ -269,6 +294,7 @@ export default {
     border: 1px solid #e3e9f2;
     border-radius: 8px;
     background: #fff;
+    min-height: 0;
 
     .section-header {
       padding: 7px 8px;
@@ -301,6 +327,40 @@ export default {
 
     .field-list {
       padding: 0 4px 6px;
+    }
+
+    .field-list--scroll {
+      max-height: 180px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .subgroup-title {
+      margin: 6px 0 2px;
+      padding: 0 2px;
+      font-size: 11px;
+      color: #7b8da5;
+      font-weight: 600;
+    }
+
+    .source-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 34px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      font-size: 10px;
+      color: #5f6b7a;
+      background: #eef2f7;
+      border: 1px solid #dbe3ee;
+
+      &.source-tag--meta {
+        color: #2159bf;
+        background: #eaf1ff;
+        border-color: #c8dafc;
+      }
     }
 
     .field-item {
@@ -384,5 +444,3 @@ export default {
   opacity: 0;
 }
 </style>
-
-

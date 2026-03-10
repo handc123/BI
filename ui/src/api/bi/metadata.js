@@ -43,6 +43,17 @@ export function resolveMetricMetadata(data) {
 }
 
 /**
+ * 查询当前机构在指定数据集下可用指标
+ */
+export function listAvailableMetricMetadata(datasetId) {
+  return request({
+    url: '/bi/metadata/available',
+    method: 'get',
+    params: { datasetId }
+  })
+}
+
+/**
  * 新增指标元数据
  */
 export function addMetricMetadata(data) {

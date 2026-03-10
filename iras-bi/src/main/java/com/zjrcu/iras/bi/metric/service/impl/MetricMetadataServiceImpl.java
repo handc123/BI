@@ -277,4 +277,21 @@ public class MetricMetadataServiceImpl implements IMetricMetadataService {
                 .replace("）", ")")
                 .replaceAll("\\s+", "");
     }
+
+    @Override
+    public List<MetricMetadata> selectAvailableMetricsByDataset(Long datasetId) {
+        if (datasetId == null) {
+            return java.util.Collections.emptyList();
+        }
+        Long deptId = SecurityUtils.getDeptId();
+        if (deptId == null) {
+            return java.util.Collections.emptyList();
+        }
+
+        MetricMetadata query = new MetricMetadata();
+        query.setDatasetId(datasetId);
+        query.setDeptId(deptId);
+        query.setStatus("0");
+        return metricMetadataMapper.selectMetricMetadataList(query);
+    }
 }

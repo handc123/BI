@@ -105,4 +105,12 @@ public interface IMetricMetadataService {
      * @return 解析结果
      */
     MetricResolveResponseDTO resolveMetric(MetricResolveRequestDTO request);
+
+    /**
+     * 查询当前登录机构在指定数据集下可用的指标元数据
+     *
+     * @param datasetId 数据集ID
+     * @return 指标列表
+     */
+    List<MetricMetadata> selectAvailableMetricsByDataset(Long datasetId);
 }

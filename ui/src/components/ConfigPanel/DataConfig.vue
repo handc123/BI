@@ -173,6 +173,7 @@
               <field-management-panel
                 :dataset-id="dataConfig.datasetId"
                 :dataset-fields="availableFields"
+                :metadata-metric-fields="metadataMetricFields"
                 :calculated-fields="calculatedFields"
                 :chart-type="component.styleConfig && component.styleConfig.chartType"
                 @add-calculated-field="handleAddCalculatedField"
@@ -214,7 +215,7 @@
 <script>
 import { listDataSource } from '@/api/bi/datasource'
 import { listDataset, getDatasetData, getDatasetFields } from '@/api/bi/dataset'
-import { addMetricMetadata, resolveMetricMetadata } from '@/api/bi/metadata'
+import { addMetricMetadata, listAvailableMetricMetadata, resolveMetricMetadata } from '@/api/bi/metadata'
 import FieldManagementPanel from '@/components/FieldManagementPanel'
 import CalculatedFieldDialog from '@/components/CalculatedFieldDialog'
 
@@ -236,6 +237,7 @@ export default {
       datasources: [],
       datasets: [],
       availableFields: [],
+      metadataMetricFields: [],
       dataConfig: {
         datasourceId: null,
         datasetId: null,
@@ -366,6 +368,7 @@ export default {
     async loadDatasetFields(datasetId) {
       if (!datasetId) {
         this.availableFields = []
+        this.metadataMetricFields = []
         return
       }
       try {
@@ -392,9 +395,35 @@ export default {
         } else {
           this.availableFields = []
         }
+        await this.loadAvailableMetadataMetrics(datasetId)
       } catch (error) {
         this.$message.error('鍔犺浇瀛楁澶辫触: ' + (error.message || '鏈煡閿欒'))
         this.availableFields = []
+        this.metadataMetricFields = []
+      }
+    },
+
+    async loadAvailableMetadataMetrics(datasetId) {
+      if (!datasetId) {
+        this.metadataMetricFields = []
+        return
+      }
+      try {
+        const res = await listAvailableMetricMetadata(datasetId)
+        const rows = res && Array.isArray(res.data) ? res.data : []
+        this.metadataMetricFields = rows.map(item => ({
+          name: item.metricCode,
+          fieldName: item.metricCode,
+          comment: item.metricName,
+          alias: item.metricName,
+          fieldType: 'metric',
+          metricId: item.id,
+          metricCode: item.metricCode,
+          metricName: item.metricName,
+          sourceType: 'metadata'
+        }))
+      } catch (e) {
+        this.metadataMetricFields = []
       }
     },
 
@@ -405,6 +434,7 @@ export default {
       this.dataConfig.measures = []
       this.dataConfig.filters = []
       this.availableFields = []
+      this.metadataMetricFields = []
       this.calculatedFields = []
       this.loadDatasets(datasourceId)
       this.emitChange()
@@ -442,6 +472,7 @@ export default {
       this.selectedDimensions = []
       this.selectedMetrics = []
       this.calculatedFields = []
+      this.metadataMetricFields = []
       this.loadDatasetFields(datasetId)
       this.emitChange()
     },
@@ -570,6 +601,10 @@ export default {
         comment: m.comment,
         fieldType: m.fieldType || m.type,
         isCalculated: m.isCalculated || false,
+        metricId: m.metricId,
+        metricCode: m.metricCode,
+        metricName: m.metricName,
+        sourceType: m.sourceType,
         // 濡傛灉鏄绠楀瓧娈碉紝娣诲姞棰濆淇℃伅
         ...(m.isCalculated ? {
           expression: m.expression,
