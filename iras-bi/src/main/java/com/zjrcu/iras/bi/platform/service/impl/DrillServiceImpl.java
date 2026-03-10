@@ -21,6 +21,13 @@ import java.util.stream.Collectors;
  */
 @Service
 public class DrillServiceImpl implements IDrillService {
+    private static final Set<String> ALLOWED_OPERATORS = new HashSet<>(Arrays.asList(
+        "EQ", "NE", "GT", "GTE", "LT", "LTE", "LIKE", "IN", "NOT_IN", "BETWEEN", "IS_NULL", "IS_NOT_NULL"
+    ));
+
+    private static final Set<String> PUSH_DOWN_OPERATORS = new HashSet<>(Arrays.asList(
+        "EQ", "NE", "GT", "GTE", "LT", "LTE", "LIKE", "IN", "BETWEEN"
+    ));
 
     @Autowired
     private IMetricMetadataService metricMetadataService;
@@ -72,16 +79,67 @@ public class DrillServiceImpl implements IDrillService {
             throw new ServiceException("指标未关联数据集");
         }
 
-        // 带入条件先下推到数据库侧，减少回传数据量
-        // 若用户规则中出现同字段，按需求“用户规则优先”覆盖带入条件
-        Set<String> overrideFields = extractRuleFields(request.getRuleGroups());
-        List<DrillConditionDTO> inherited = request.getInheritedConditions();
-        if (inherited != null && !inherited.isEmpty() && !overrideFields.isEmpty()) {
-            inherited = inherited.stream()
-                .filter(c -> c == null || StringUtils.isEmpty(c.getField()) || !overrideFields.contains(c.getField().toLowerCase()))
+        return executeOnDataset(
+            datasetId,
+            request.getMetricId(),
+            null,
+            request.getInheritedConditions(),
+            request.getRuleGroups(),
+            request.getPageNum(),
+            request.getPageSize()
+        );
+    }
+
+    @Override
+    public Map<String, Object> executeDrillFieldQuery(DrillFieldQueryRequestDTO request) {
+        if (request == null || request.getDatasetId() == null) {
+            throw new ServiceException("datasetId不能为空");
+        }
+        if (StringUtils.isEmpty(request.getMetricField())) {
+            throw new ServiceException("metricField不能为空");
+        }
+
+        return executeOnDataset(
+            request.getDatasetId(),
+            null,
+            request.getMetricField(),
+            request.getInheritedConditions(),
+            request.getRuleGroups(),
+            request.getPageNum(),
+            request.getPageSize()
+        );
+    }
+
+    private Map<String, Object> executeOnDataset(Long datasetId,
+                                                 Long metricId,
+                                                 String metricField,
+                                                 List<DrillConditionDTO> inheritedConditions,
+                                                 List<DrillRuleGroupDTO> ruleGroups,
+                                                 Integer requestPageNum,
+                                                 Integer requestPageSize) {
+        Map<String, DatasetFieldVO> fieldMap = buildDatasetFieldMap(datasetId);
+        if (StringUtils.isNotEmpty(metricField) && !fieldMap.containsKey(metricField.trim().toLowerCase())) {
+            throw new ServiceException("metricField不在数据集字段范围内: " + metricField);
+        }
+        List<DrillConditionDTO> normalizedInherited = normalizeConditions(inheritedConditions, fieldMap, "已带入条件");
+        List<DrillRuleGroupDTO> normalizedRuleGroups = normalizeRuleGroups(ruleGroups, fieldMap);
+
+        // 用户规则优先: 如果规则中使用了同字段, 则剔除带入条件中的同字段条件
+        Set<String> overrideFields = extractRuleFields(normalizedRuleGroups);
+        if (!overrideFields.isEmpty()) {
+            normalizedInherited = normalizedInherited.stream()
+                .filter(c -> !overrideFields.contains(c.getField().toLowerCase()))
                 .collect(Collectors.toList());
         }
-        List<Filter> inheritedFilters = toExecutorFilters(inherited);
+
+        List<DrillConditionDTO> inheritedPushDown = normalizedInherited.stream()
+            .filter(c -> PUSH_DOWN_OPERATORS.contains(c.getOperator()))
+            .collect(Collectors.toList());
+        List<DrillConditionDTO> inheritedMemory = normalizedInherited.stream()
+            .filter(c -> !PUSH_DOWN_OPERATORS.contains(c.getOperator()))
+            .collect(Collectors.toList());
+
+        List<Filter> inheritedFilters = toExecutorFilters(inheritedPushDown);
 
         QueryResult queryResult = queryExecutor.executeQuery(
             datasetId,
@@ -93,22 +151,249 @@ public class DrillServiceImpl implements IDrillService {
         }
 
         List<Map<String, Object>> allRows = queryResult.getData() != null ? queryResult.getData() : Collections.emptyList();
-        List<Map<String, Object>> filteredRows = applyRuleGroups(allRows, request.getRuleGroups());
+        List<Map<String, Object>> filteredRows = applyConditions(allRows, inheritedMemory);
+        filteredRows = applyRuleGroups(filteredRows, normalizedRuleGroups);
 
-        int pageNum = request.getPageNum() != null && request.getPageNum() > 0 ? request.getPageNum() : 1;
-        int pageSize = request.getPageSize() != null && request.getPageSize() > 0 ? request.getPageSize() : 20;
+        int pageNum = requestPageNum != null && requestPageNum > 0 ? requestPageNum : 1;
+        int pageSize = requestPageSize != null && requestPageSize > 0 ? requestPageSize : 20;
         int from = Math.max((pageNum - 1) * pageSize, 0);
         int to = Math.min(from + pageSize, filteredRows.size());
         List<Map<String, Object>> pageRows = from >= filteredRows.size() ? Collections.emptyList() : filteredRows.subList(from, to);
 
         Map<String, Object> result = new HashMap<>();
-        result.put("metricId", request.getMetricId());
+        result.put("metricId", metricId);
+        result.put("metricField", metricField);
         result.put("datasetId", datasetId);
         result.put("total", filteredRows.size());
         result.put("pageNum", pageNum);
         result.put("pageSize", pageSize);
         result.put("rows", pageRows);
         result.put("fields", queryResult.getFields());
+        return result;
+    }
+
+    private Map<String, DatasetFieldVO> buildDatasetFieldMap(Long datasetId) {
+        List<DatasetFieldVO> fields = datasetService.getDatasetFields(datasetId);
+        if (fields == null || fields.isEmpty()) {
+            throw new ServiceException("数据集字段信息为空，无法执行穿透查询");
+        }
+
+        Map<String, DatasetFieldVO> fieldMap = new HashMap<>();
+        for (DatasetFieldVO field : fields) {
+            if (field == null || StringUtils.isEmpty(field.getFieldName())) {
+                continue;
+            }
+            fieldMap.put(field.getFieldName().toLowerCase(), field);
+        }
+        return fieldMap;
+    }
+
+    private List<DrillConditionDTO> normalizeConditions(List<DrillConditionDTO> conditions,
+                                                        Map<String, DatasetFieldVO> fieldMap,
+                                                        String sceneName) {
+        if (conditions == null || conditions.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<DrillConditionDTO> normalized = new ArrayList<>();
+        for (DrillConditionDTO item : conditions) {
+            DrillConditionDTO condition = normalizeSingleCondition(item, fieldMap, sceneName, false);
+            if (condition != null) {
+                normalized.add(condition);
+            }
+        }
+        return normalized;
+    }
+
+    private List<DrillRuleGroupDTO> normalizeRuleGroups(List<DrillRuleGroupDTO> groups,
+                                                        Map<String, DatasetFieldVO> fieldMap) {
+        if (groups == null || groups.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<DrillRuleGroupDTO> normalizedGroups = new ArrayList<>();
+        for (int i = 0; i < groups.size(); i++) {
+            DrillRuleGroupDTO group = groups.get(i);
+            if (group == null) {
+                continue;
+            }
+            List<DrillConditionDTO> normalizedRules = new ArrayList<>();
+            if (group.getRules() != null) {
+                for (DrillConditionDTO rule : group.getRules()) {
+                    DrillConditionDTO normalizedRule = normalizeSingleCondition(rule, fieldMap, "规则组条件", true);
+                    if (normalizedRule != null) {
+                        normalizedRules.add(normalizedRule);
+                    }
+                }
+            }
+            if (normalizedRules.isEmpty()) {
+                continue;
+            }
+            DrillRuleGroupDTO newGroup = new DrillRuleGroupDTO();
+            newGroup.setRules(normalizedRules);
+            if (i == 0) {
+                newGroup.setRelationWithPrev("AND");
+            } else {
+                String rel = StringUtils.isEmpty(group.getRelationWithPrev()) ? "AND" : group.getRelationWithPrev().trim().toUpperCase();
+                newGroup.setRelationWithPrev("OR".equals(rel) ? "OR" : "AND");
+            }
+            normalizedGroups.add(newGroup);
+        }
+        return normalizedGroups;
+    }
+
+    private DrillConditionDTO normalizeSingleCondition(DrillConditionDTO source,
+                                                       Map<String, DatasetFieldVO> fieldMap,
+                                                       String sceneName,
+                                                       boolean skipEmptyField) {
+        if (source == null) {
+            return null;
+        }
+        if (StringUtils.isEmpty(source.getField())) {
+            if (skipEmptyField) {
+                return null;
+            }
+            throw new ServiceException(sceneName + "字段不能为空");
+        }
+
+        String field = source.getField().trim();
+        DatasetFieldVO fieldVO = fieldMap.get(field.toLowerCase());
+        if (fieldVO == null) {
+            throw new ServiceException(sceneName + "存在非法字段: " + source.getField());
+        }
+
+        String normalizedOp = normalizeOperator(source.getOperator());
+        if (!ALLOWED_OPERATORS.contains(normalizedOp)) {
+            throw new ServiceException(sceneName + "存在不支持的操作符: " + source.getOperator());
+        }
+
+        DrillConditionDTO target = new DrillConditionDTO();
+        target.setField(fieldVO.getFieldName());
+        target.setOperator(normalizedOp);
+
+        if ("IS_NULL".equals(normalizedOp) || "IS_NOT_NULL".equals(normalizedOp)) {
+            target.setValue(null);
+            target.setValues(null);
+            return target;
+        }
+
+        if ("IN".equals(normalizedOp) || "NOT_IN".equals(normalizedOp) || "BETWEEN".equals(normalizedOp)) {
+            List<Object> normalizedValues = normalizeMultiValues(source);
+            if ("BETWEEN".equals(normalizedOp) && normalizedValues.size() != 2) {
+                throw new ServiceException(sceneName + "的BETWEEN操作符必须提供两个值");
+            }
+            if (("IN".equals(normalizedOp) || "NOT_IN".equals(normalizedOp)) && normalizedValues.isEmpty()) {
+                throw new ServiceException(sceneName + "的IN/NOT IN操作符至少需要一个值");
+            }
+            target.setValues(normalizedValues);
+            target.setValue(null);
+            return target;
+        }
+
+        if (source.getValue() == null || StringUtils.isEmpty(String.valueOf(source.getValue()).trim())) {
+            throw new ServiceException(sceneName + "字段[" + target.getField() + "]的条件值不能为空");
+        }
+        target.setValue(source.getValue());
+        target.setValues(null);
+        return target;
+    }
+
+    private String normalizeOperator(String operator) {
+        if (StringUtils.isEmpty(operator)) {
+            return "EQ";
+        }
+        String op = operator.trim().toUpperCase();
+        switch (op) {
+            case "=":
+            case "==":
+            case "EQ":
+            case "等于":
+                return "EQ";
+            case "!=":
+            case "<>":
+            case "NE":
+            case "不等于":
+                return "NE";
+            case ">":
+            case "GT":
+            case "大于":
+                return "GT";
+            case ">=":
+            case "GTE":
+            case "大于等于":
+                return "GTE";
+            case "<":
+            case "LT":
+            case "小于":
+                return "LT";
+            case "<=":
+            case "LTE":
+            case "小于等于":
+                return "LTE";
+            case "LIKE":
+            case "包含":
+                return "LIKE";
+            case "IN":
+                return "IN";
+            case "NOT IN":
+            case "NOT_IN":
+                return "NOT_IN";
+            case "BETWEEN":
+            case "介于":
+                return "BETWEEN";
+            case "IS NULL":
+            case "IS_NULL":
+            case "为空":
+                return "IS_NULL";
+            case "IS NOT NULL":
+            case "IS_NOT_NULL":
+            case "非空":
+                return "IS_NOT_NULL";
+            default:
+                return op;
+        }
+    }
+
+    private List<Object> normalizeMultiValues(DrillConditionDTO source) {
+        List<Object> result = new ArrayList<>();
+        if (source.getValues() != null && !source.getValues().isEmpty()) {
+            for (Object value : source.getValues()) {
+                if (value != null && StringUtils.isNotEmpty(String.valueOf(value).trim())) {
+                    result.add(value);
+                }
+            }
+            return result;
+        }
+
+        if (source.getValue() == null) {
+            return result;
+        }
+
+        Object value = source.getValue();
+        if (value instanceof Collection) {
+            Collection<?> coll = (Collection<?>) value;
+            for (Object item : coll) {
+                if (item != null && StringUtils.isNotEmpty(String.valueOf(item).trim())) {
+                    result.add(item);
+                }
+            }
+            return result;
+        }
+
+        String text = String.valueOf(value).trim();
+        if (StringUtils.isEmpty(text)) {
+            return result;
+        }
+
+        if (text.startsWith("[") && text.endsWith("]")) {
+            text = text.substring(1, text.length() - 1);
+        }
+        String[] parts = text.split(",");
+        for (String part : parts) {
+            String val = part != null ? part.trim() : "";
+            if (StringUtils.isNotEmpty(val)) {
+                result.add(val);
+            }
+        }
         return result;
     }
 
@@ -123,23 +408,63 @@ public class DrillServiceImpl implements IDrillService {
             }
             Filter f = new Filter();
             f.setField(item.getField());
-            f.setOperator(item.getOperator());
+            f.setOperator(toExecutorOperator(item.getOperator()));
 
             if (item.getValues() != null && !item.getValues().isEmpty()) {
                 f.setValues(item.getValues());
-            } else if ("between".equalsIgnoreCase(item.getOperator()) && item.getValue() instanceof String) {
-                String[] parts = String.valueOf(item.getValue()).split(",", 2);
-                if (parts.length == 2) {
-                    f.setValues(Arrays.asList(parts[0].trim(), parts[1].trim()));
-                } else {
-                    f.setValue(item.getValue());
-                }
             } else {
                 f.setValue(item.getValue());
             }
             filters.add(f);
         }
         return filters;
+    }
+
+    private String toExecutorOperator(String normalizedOp) {
+        if (StringUtils.isEmpty(normalizedOp)) {
+            return "eq";
+        }
+        switch (normalizedOp) {
+            case "EQ":
+                return "eq";
+            case "NE":
+                return "ne";
+            case "GT":
+                return "gt";
+            case "GTE":
+                return "gte";
+            case "LT":
+                return "lt";
+            case "LTE":
+                return "lte";
+            case "LIKE":
+                return "like";
+            case "IN":
+                return "in";
+            case "BETWEEN":
+                return "between";
+            default:
+                return normalizedOp.toLowerCase();
+        }
+    }
+
+    private List<Map<String, Object>> applyConditions(List<Map<String, Object>> rows, List<DrillConditionDTO> conditions) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (conditions == null || conditions.isEmpty()) {
+            return rows;
+        }
+        return rows.stream()
+            .filter(row -> {
+                for (DrillConditionDTO condition : conditions) {
+                    if (!evaluateRule(row, condition)) {
+                        return false;
+                    }
+                }
+                return true;
+            })
+            .collect(Collectors.toList());
     }
 
     /**
@@ -209,50 +534,37 @@ public class DrillServiceImpl implements IDrillService {
             return true;
         }
         Object left = getFieldValue(row, rule.getField());
-        String op = StringUtils.isEmpty(rule.getOperator()) ? "=" : rule.getOperator().trim().toUpperCase();
+        String op = normalizeOperator(rule.getOperator());
         Object right = rule.getValue();
         List<Object> rights = rule.getValues();
 
         switch (op) {
-            case "=":
             case "EQ":
                 return compare(left, right) == 0;
-            case "!=":
-            case "<>":
             case "NE":
                 return compare(left, right) != 0;
-            case ">":
             case "GT":
                 return compare(left, right) > 0;
-            case ">=":
             case "GTE":
                 return compare(left, right) >= 0;
-            case "<":
             case "LT":
                 return compare(left, right) < 0;
-            case "<=":
             case "LTE":
                 return compare(left, right) <= 0;
             case "LIKE":
                 return left != null && right != null && String.valueOf(left).contains(String.valueOf(right));
             case "IN":
                 return rights != null && rights.stream().anyMatch(v -> compare(left, v) == 0);
-            case "NOT IN":
+            case "NOT_IN":
                 return rights == null || rights.stream().noneMatch(v -> compare(left, v) == 0);
             case "BETWEEN":
                 if (rights != null && rights.size() == 2) {
                     return compare(left, rights.get(0)) >= 0 && compare(left, rights.get(1)) <= 0;
                 }
-                if (right instanceof String) {
-                    String[] parts = String.valueOf(right).split(",", 2);
-                    if (parts.length == 2) {
-                        return compare(left, parts[0].trim()) >= 0 && compare(left, parts[1].trim()) <= 0;
-                    }
-                }
                 return true;
-            case "IS NULL":
+            case "IS_NULL":
                 return left == null || String.valueOf(left).trim().isEmpty();
-            case "IS NOT NULL":
+            case "IS_NOT_NULL":
                 return left != null && !String.valueOf(left).trim().isEmpty();
             default:
                 return true;

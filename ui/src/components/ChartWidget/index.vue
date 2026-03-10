@@ -1166,17 +1166,32 @@ export default {
 
         const matchedMetrics = []
         const metricList = []
+        const rawFieldCandidates = []
 
         for (const metric of metrics) {
-          const resolved = await this.resolveMetricForDrill(metric)
-          if (resolved && resolved.id) {
-            matchedMetrics.push(resolved.id)
-            metricList.push({
-              id: resolved.id,
-              code: resolved.metricCode || resolved.metricName,
-              label: metric.label || metric.comment || resolved.metricName
+          const isCalculated = metric && (metric.isCalculated === true || !!metric.expression)
+          if (isCalculated) {
+            const resolved = await this.resolveMetricForDrill(metric)
+            if (resolved && resolved.id) {
+              matchedMetrics.push(resolved.id)
+              metricList.push({
+                id: resolved.id,
+                code: resolved.metricCode || resolved.metricName,
+                label: metric.label || metric.comment || resolved.metricName
+              })
+              console.log('[ChartWidget] 解析到计算指标:', metric, '->', resolved.metricCode || resolved.metricName, 'ID:', resolved.id)
+            }
+            continue
+          }
+
+          const metricField = metric ? (metric.field || metric.fieldName || '') : ''
+          if (metricField) {
+            rawFieldCandidates.push({
+              metricField,
+              metricName: metric.label || metric.comment || metric.fieldName || metric.field,
+              datasetId: this.config?.dataConfig?.datasetId || null,
+              isCalculated: false
             })
-            console.log('[ChartWidget] 解析到指标:', metric, '->', resolved.metricCode || resolved.metricName, 'ID:', resolved.id)
           }
         }
 
@@ -1189,6 +1204,9 @@ export default {
           })
           this.$emit('multi-metric-click', matchedMetrics, metricList, this.config.id)
           console.log('[ChartWidget] multi-metric-click 事件已发送')
+        } else if (rawFieldCandidates.length > 0) {
+          this.$emit('field-drill-click', rawFieldCandidates[0], this.config.id)
+          console.log('[ChartWidget] field-drill-click 事件已发送:', rawFieldCandidates[0])
         } else {
           // 未解析到可穿透指标
           const metricNames = metrics.map(m => m.comment || m.fieldName || m.name).join('、')

@@ -65,6 +65,7 @@
               :is-edit-mode="false"
               @metric-click="handleMetricClick"
               @multi-metric-click="handleMultiMetricClick"
+              @field-drill-click="handleFieldDrillClick"
             />
 
             <!-- 其他组件类型 -->
@@ -311,6 +312,15 @@ export default {
       this.navigateToDrill(metricIds[0], componentId)
     },
 
+    // 处理原始字段穿透事件
+    handleFieldDrillClick(payload, componentId) {
+      if (!payload || !payload.datasetId || !payload.metricField) {
+        this.$message.warning('原始字段穿透参数不完整')
+        return
+      }
+      this.navigateToDrillByField(payload, componentId)
+    },
+
     navigateToDrill(metricId, componentId) {
       const snapshot = this.queryParams || {}
       const query = {
@@ -322,6 +332,30 @@ export default {
       }
 
       // 常用透传字段（机构/日期）做便捷展示
+      if (snapshot.sjbsjgid !== undefined && snapshot.sjbsjgid !== null) {
+        query.orgId = String(snapshot.sjbsjgid)
+      }
+      if (snapshot.load_date) {
+        query.date = String(snapshot.load_date)
+      }
+
+      this.$router.push({
+        path: `/bi/dashboard/drill/${this.dashboardId}`,
+        query
+      })
+    },
+
+    navigateToDrillByField(payload, componentId) {
+      const snapshot = this.queryParams || {}
+      const query = {
+        datasetId: String(payload.datasetId),
+        metricField: String(payload.metricField),
+        metricName: payload.metricName ? String(payload.metricName) : String(payload.metricField),
+        querySnapshot: JSON.stringify(snapshot)
+      }
+      if (componentId !== undefined && componentId !== null) {
+        query.componentId = String(componentId)
+      }
       if (snapshot.sjbsjgid !== undefined && snapshot.sjbsjgid !== null) {
         query.orgId = String(snapshot.sjbsjgid)
       }

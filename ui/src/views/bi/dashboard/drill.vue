@@ -100,7 +100,7 @@
 </template>
 
 <script>
-import { getDrillConfig, queryDrillDetail } from '@/api/bi/drill'
+import { getDrillConfig, queryDrillByField, queryDrillDetail } from '@/api/bi/drill'
 import { parseMetricConditions } from '@/utils/metricExpressionParser'
 
 export default {
@@ -131,6 +131,8 @@ export default {
       const items = []
       if (query.metricId) {
         items.push({ key: 'metricId', label: '指标', value: query.metricId })
+      } else if (query.metricField) {
+        items.push({ key: 'metricField', label: '字段', value: query.metricName || query.metricField })
       }
       if (query.componentId) {
         items.push({ key: 'componentId', label: '图表', value: query.componentId })
@@ -210,11 +212,20 @@ export default {
 
     async initPage() {
       const metricId = this.$route.query && this.$route.query.metricId
-      if (!metricId) {
+      const datasetId = this.$route.query && this.$route.query.datasetId
+      const metricField = this.$route.query && this.$route.query.metricField
+      if (!metricId && !(datasetId && metricField)) {
+        this.$message.error('缺少穿透参数，请返回图表页面重新点击')
         return
       }
-      await this.loadDrillConfig(metricId)
-      this.loadFormulaConditions()
+      if (metricId) {
+        await this.loadDrillConfig(metricId)
+        this.loadFormulaConditions()
+      } else {
+        this.drillConfig = null
+        this.inheritedFormulaConditions = []
+        this.formulaParseError = ''
+      }
       this.handleQuery()
     },
 
@@ -316,26 +327,42 @@ export default {
         inheritedConditions.push(condition)
       })
 
-      const payload = {
-        metricId: Number(this.$route.query.metricId),
-        dashboardId: Number(this.$route.params.dashboardId),
-        componentId: this.$route.query.componentId ? Number(this.$route.query.componentId) : null,
+      const ruleGroups = this.ruleGroups.map(g => ({
+        relationWithPrev: g.relationWithPrev,
+        rules: g.rules
+          .filter(r => r.field && r.operator)
+          .map(r => ({
+            field: r.field,
+            operator: r.operator,
+            value: r.value
+          }))
+      }))
+      const dashboardId = Number(this.$route.params.dashboardId)
+      const componentId = this.$route.query.componentId ? Number(this.$route.query.componentId) : null
+      const metricId = this.$route.query.metricId ? Number(this.$route.query.metricId) : null
+
+      const request = metricId ? queryDrillDetail({
+        metricId,
+        dashboardId,
+        componentId,
         datasetId: this.drillConfig ? this.drillConfig.datasetId : null,
         inheritedConditions,
-        ruleGroups: this.ruleGroups.map(g => ({
-          relationWithPrev: g.relationWithPrev,
-          rules: g.rules
-            .filter(r => r.field && r.operator)
-            .map(r => ({
-              field: r.field,
-              operator: r.operator,
-              value: r.value
-            }))
-        })),
+        ruleGroups,
         pageNum: this.pageNum,
         pageSize: this.pageSize
-      }
-      queryDrillDetail(payload).then(res => {
+      }) : queryDrillByField({
+        datasetId: Number(this.$route.query.datasetId),
+        metricField: this.$route.query.metricField,
+        metricName: this.$route.query.metricName || this.$route.query.metricField,
+        dashboardId,
+        componentId,
+        inheritedConditions,
+        ruleGroups,
+        pageNum: this.pageNum,
+        pageSize: this.pageSize
+      })
+
+      request.then(res => {
         if (res.code === 200 && res.data) {
           this.tableData = res.data.rows || []
           this.total = res.data.total || 0

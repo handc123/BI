@@ -15,3 +15,10 @@ export function queryDrillDetail(data) {
   })
 }
 
+export function queryDrillByField(data) {
+  return request({
+    url: '/bi/drill/queryByField',
+    method: 'post',
+    data
+  })
+}

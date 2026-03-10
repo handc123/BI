@@ -1,6 +1,7 @@
 package com.zjrcu.iras.bi.platform.controller;
 
 import com.zjrcu.iras.bi.platform.domain.dto.DrillConfigDTO;
+import com.zjrcu.iras.bi.platform.domain.dto.DrillFieldQueryRequestDTO;
 import com.zjrcu.iras.bi.platform.domain.dto.DrillQueryRequestDTO;
 import com.zjrcu.iras.bi.platform.service.IDrillService;
 import com.zjrcu.iras.common.core.controller.BaseController;
@@ -31,5 +32,10 @@ public class DrillController extends BaseController {
     public AjaxResult query(@RequestBody DrillQueryRequestDTO request) {
         return success(drillService.executeDrillQuery(request));
     }
-}
 
+    @PreAuthorize("@ss.hasPermi('bi:dashboard:query')")
+    @PostMapping("/queryByField")
+    public AjaxResult queryByField(@RequestBody DrillFieldQueryRequestDTO request) {
+        return success(drillService.executeDrillFieldQuery(request));
+    }
+}

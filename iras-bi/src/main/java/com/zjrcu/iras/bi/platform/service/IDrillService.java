@@ -1,6 +1,7 @@
 package com.zjrcu.iras.bi.platform.service;
 
 import com.zjrcu.iras.bi.platform.domain.dto.DrillConfigDTO;
+import com.zjrcu.iras.bi.platform.domain.dto.DrillFieldQueryRequestDTO;
 import com.zjrcu.iras.bi.platform.domain.dto.DrillQueryRequestDTO;
 
 import java.util.Map;
@@ -19,5 +20,9 @@ public interface IDrillService {
      * 执行穿透明细查询
      */
     Map<String, Object> executeDrillQuery(DrillQueryRequestDTO request);
-}
 
+    /**
+     * 执行原始字段穿透查询
+     */
+    Map<String, Object> executeDrillFieldQuery(DrillFieldQueryRequestDTO request);
+}
