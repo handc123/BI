@@ -80,6 +80,18 @@
         WHERE metric_code = #{metricCode} AND del_flag = '0'
     </select>
 
+    <select id="checkMetricCodeUnique" parameterType="com.zjrcu.iras.bi.metric.domain.MetricMetadata" resultMap="MetricMetadataResult">
+        <include refid="selectMetricMetadataVo"/>
+        <where>
+            del_flag = '0'
+            AND metric_code = #{metricCode}
+            <if test="deptId != null">
+                AND dept_id = #{deptId}
+            </if>
+        </where>
+        LIMIT 1
+    </select>
+
     <insert id="insertMetricMetadata" parameterType="com.zjrcu.iras.bi.metric.domain.MetricMetadata" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO bi_metric_metadata
         <trim prefix="(" suffix=")" suffixOverrides=",">
