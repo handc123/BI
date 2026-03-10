@@ -4,7 +4,7 @@ import com.zjrcu.iras.bi.platform.domain.Dashboard;
 import com.zjrcu.iras.bi.platform.domain.Visualization;
 import com.zjrcu.iras.bi.platform.domain.dto.Filter;
 import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
-import com.zjrcu.iras.bi.platform.service.ExportTaskStatus;
+import com.zjrcu.iras.bi.platform.domain.ExportTaskStatus;
 import com.zjrcu.iras.bi.platform.service.IDashboardService;
 import com.zjrcu.iras.bi.platform.service.IExportService;
 import com.zjrcu.iras.bi.platform.service.IVisualizationService;

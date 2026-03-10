@@ -155,6 +155,47 @@ export default {
     }
   },
   methods: {
+    normalizeLongId(id) {
+      if (id === undefined || id === null || id === '') {
+        return null
+      }
+      if (typeof id === 'number' && Number.isFinite(id)) {
+        return id
+      }
+      const text = String(id).trim()
+      if (!text) {
+        return null
+      }
+      if (/^\d+$/.test(text)) {
+        return Number(text)
+      }
+      const match = text.match(/(\d+)$/)
+      return match && match[1] ? Number(match[1]) : null
+    },
+
+    buildSnapshotFieldMap(componentId) {
+      const normalizedComponentId = this.normalizeLongId(componentId)
+      if (!normalizedComponentId) {
+        return {}
+      }
+      const map = {}
+      const conditions = this.queryConditions || []
+      const mappings = this.conditionMappings || []
+      conditions.forEach(condition => {
+        if (!condition || condition.id === undefined || condition.id === null) {
+          return
+        }
+        const hit = mappings.find(m =>
+          String(m.conditionId) === String(condition.id) &&
+          String(m.componentId) === String(normalizedComponentId) &&
+          m.fieldName
+        )
+        if (hit) {
+          map[String(condition.id)] = hit.fieldName
+        }
+      })
+      return map
+    },
     // 加载仪表板
     async loadDashboard(id) {
       this.loading = true
@@ -323,12 +364,15 @@ export default {
 
     navigateToDrill(metricId, componentId) {
       const snapshot = this.queryParams || {}
+      const snapshotFieldMap = this.buildSnapshotFieldMap(componentId)
       const query = {
         metricId: String(metricId),
-        querySnapshot: JSON.stringify(snapshot)
+        querySnapshot: JSON.stringify(snapshot),
+        querySnapshotFieldMap: JSON.stringify(snapshotFieldMap)
       }
-      if (componentId !== undefined && componentId !== null) {
-        query.componentId = String(componentId)
+      const normalizedComponentId = this.normalizeLongId(componentId)
+      if (normalizedComponentId !== null) {
+        query.componentId = String(normalizedComponentId)
       }
 
       // 常用透传字段（机构/日期）做便捷展示
@@ -347,14 +391,17 @@ export default {
 
     navigateToDrillByField(payload, componentId) {
       const snapshot = this.queryParams || {}
+      const snapshotFieldMap = this.buildSnapshotFieldMap(componentId)
       const query = {
         datasetId: String(payload.datasetId),
         metricField: String(payload.metricField),
         metricName: payload.metricName ? String(payload.metricName) : String(payload.metricField),
-        querySnapshot: JSON.stringify(snapshot)
+        querySnapshot: JSON.stringify(snapshot),
+        querySnapshotFieldMap: JSON.stringify(snapshotFieldMap)
       }
-      if (componentId !== undefined && componentId !== null) {
-        query.componentId = String(componentId)
+      const normalizedComponentId = this.normalizeLongId(componentId)
+      if (normalizedComponentId !== null) {
+        query.componentId = String(normalizedComponentId)
       }
       if (snapshot.sjbsjgid !== undefined && snapshot.sjbsjgid !== null) {
         query.orgId = String(snapshot.sjbsjgid)

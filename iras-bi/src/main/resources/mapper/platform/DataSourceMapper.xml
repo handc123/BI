@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zjrcu.iras.bi.platform.mapper.DataSourceMapper">
 
-    <resultMap type="DataSource" id="DataSourceResult">
+    <resultMap type="com.zjrcu.iras.bi.platform.domain.DataSource" id="DataSourceResult">
         <id     property="id"        column="id"        />
         <result property="name"      column="name"      />
         <result property="type"      column="type"      />
@@ -20,7 +20,7 @@
         from bi_datasource
     </sql>
 
-    <select id="selectDataSourceList" parameterType="DataSource" resultMap="DataSourceResult">
+    <select id="selectDataSourceList" resultMap="DataSourceResult">
         <include refid="selectDataSourceVo"/>
         <where>
             <if test="name != null and name != ''">
@@ -41,7 +41,7 @@
         where id = #{id}
     </select>
 
-    <insert id="insertDataSource" parameterType="DataSource" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insertDataSource"  useGeneratedKeys="true" keyProperty="id">
         insert into bi_datasource
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="name != null and name != ''">name,</if>
@@ -63,7 +63,7 @@
         </trim>
     </insert>
 
-    <update id="updateDataSource" parameterType="DataSource">
+    <update id="updateDataSource" >
         update bi_datasource
         <trim prefix="SET" suffixOverrides=",">
             <if test="name != null and name != ''">name = #{name},</if>

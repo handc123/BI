@@ -85,6 +85,16 @@ public class MetricMetadataServiceImpl implements IMetricMetadataService {
      */
     @Override
     public int insertMetricMetadata(MetricMetadata metricMetadata) {
+        MetricMetadata existing = metricMetadataMapper.checkMetricCodeUnique(metricMetadata);
+        if (existing != null) {
+            // 幂等：同机构+同数据集+metricCode 已存在时直接复用，不重复创建
+            metricMetadata.setId(existing.getId());
+            metricMetadata.setMetricCode(existing.getMetricCode());
+            metricMetadata.setMetricName(existing.getMetricName());
+            metricMetadata.setDatasetId(existing.getDatasetId());
+            metricMetadata.setDeptId(existing.getDeptId());
+            return 1;
+        }
         metricMetadata.setCreateTime(new Date());
         return metricMetadataMapper.insertMetricMetadata(metricMetadata);
     }

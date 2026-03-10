@@ -57,12 +57,13 @@
     <!-- 查询条件配置弹窗 -->
     <query-condition-config
       :visible.sync="showQueryConfig"
-      :component-id="(configTarget && typeof configTarget.id === 'number') ? configTarget.id : null"
+      :component-id="activeQueryComponentId"
       :dashboard-id="dashboardId"
       :dataset-id="configTarget && configTarget.dataConfig && configTarget.dataConfig.datasetId"
       :layout-components="components"
       :conditions="queryConditions"
       :condition-mappings="conditionMappings"
+      save-mode="aggregate"
       @update="handleQueryConfigUpdate"
     />
 
@@ -153,6 +154,10 @@ export default {
     chartComponents() {
       // 过滤出有 dataConfig 的所有可视化组件
       return this.components.filter(c => c.dataConfig && c.name)
+    },
+    activeQueryComponentId() {
+      const queryComponent = this.components.find(c => c.type === 'query')
+      return queryComponent ? queryComponent.id : null
     }
   },
   watch: {
@@ -194,6 +199,22 @@ export default {
     }
   },
   methods: {
+    toLongId(id) {
+      if (id === undefined || id === null || id === '') {
+        return null
+      }
+      if (typeof id === 'number' && Number.isFinite(id)) {
+        return id
+      }
+      const text = String(id).trim()
+      if (!text) {
+        return null
+      }
+      if (/^\d+$/.test(text)) {
+        return Number(text)
+      }
+      return null
+    },
     ...mapActions('dashboard', [
       'setCurrentDashboard',
       'updateDashboardName',
@@ -499,6 +520,13 @@ export default {
       let size, position
       
       if (componentData.type === 'query') {
+        const existingQuery = this.components.find(c => c.type === 'query')
+        if (existingQuery) {
+          this.selectComponent(existingQuery.id)
+          this.$message.warning('查询组件已存在，一个仪表板仅支持一个查询组件')
+          return
+        }
+
         size = { width: 1520, height: 120 } // 全宽，增加高度以容纳查询条件
         position = { x: 0, y: 0 } // 固定在顶部
 
@@ -831,25 +859,27 @@ export default {
           dashboard: dashboardData,
           components: components,
           queryConditions: this.queryConditions.map(cond => {
-            // 检查是否为临时ID（字符串类型以 'new_' 或 'cond_' 开头 或 数字类型负数）
-            const isTempId = (typeof cond.id === 'string' && (cond.id.startsWith('new_') || cond.id.startsWith('cond_'))) ||
+            const condIdStr = String(cond.id || '')
+            const isTempId = (typeof cond.id === 'string' && (condIdStr.startsWith('new_') || condIdStr.startsWith('cond_'))) ||
                              (typeof cond.id === 'number' && cond.id < 0)
+            const resolvedComponentId = this.toLongId(cond.componentId)
+            const isTempComponentId = resolvedComponentId === null && !!cond.componentId
 
             return {
               ...cond,
-              id: isTempId ? null : cond.id,
-              tempId: isTempId ? String(cond.id) : null,  // 统一转为字符串
+              id: isTempId ? null : this.toLongId(cond.id),
+              tempId: isTempId ? String(cond.id) : null,
               config: typeof cond.config === 'string'
                 ? cond.config
-                : JSON.stringify(cond.config || {})
+                : JSON.stringify(cond.config || {}),
+              componentId: isTempComponentId ? null : resolvedComponentId,
+              tempComponentId: isTempComponentId ? String(cond.componentId) : null
             }
           }),
           conditionMappings: this.conditionMappings.map(m => {
-            // 检查组件ID是否为临时ID（字符串类型以 'comp_' 开头 或 数字类型负数）
             const isTempCompId = (typeof m.componentId === 'string' && m.componentId.startsWith('comp_')) ||
                                  (typeof m.componentId === 'number' && m.componentId < 0)
 
-            // 检查条件ID是否为临时ID（字符串类型以 'new_' 或 'cond_' 开头 或 数字类型负数）
             const condIdStr = String(m.conditionId || '')
             const isTempCondId = (typeof m.conditionId === 'string' && (condIdStr.startsWith('new_') || condIdStr.startsWith('cond_'))) ||
                                  (typeof m.conditionId === 'number' && m.conditionId < 0)
@@ -858,11 +888,11 @@ export default {
 
             return {
               ...m,
-              id: isTempMappingId ? null : m.id,
-              componentId: isTempCompId ? null : m.componentId,
-              tempComponentId: isTempCompId ? String(m.componentId) : null,  // 统一转为字符串
-              conditionId: isTempCondId ? null : m.conditionId,
-              tempConditionId: isTempCondId ? String(m.conditionId) : null  // 统一转为字符串
+              id: isTempMappingId ? null : this.toLongId(m.id) || m.id,
+              componentId: isTempCompId ? null : this.toLongId(m.componentId),
+              tempComponentId: isTempCompId ? String(m.componentId) : null,
+              conditionId: isTempCondId ? null : this.toLongId(m.conditionId),
+              tempConditionId: isTempCondId ? String(m.conditionId) : null
             }
           })
         }

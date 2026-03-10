@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## Encoding Rules
+- All files must be read and written using UTF-8 without BOM.
+- Never modify file encoding.
+
 ## Project Structure & Module Organization
 IRAS is a multi-module Java + Vue monorepo.
 - Backend modules: `iras-admin` (entry point/config/controllers), `iras-framework` (security/config), `iras-system` (system management), `iras-common` (shared utils/entities), `iras-bi` (BI and data-quality features), `iras-generator` (code generation).

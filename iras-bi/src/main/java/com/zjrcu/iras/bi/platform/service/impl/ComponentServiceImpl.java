@@ -3,10 +3,7 @@ package com.zjrcu.iras.bi.platform.service.impl;
 import com.alibaba.fastjson2.JSONObject;
 import com.zjrcu.iras.bi.platform.domain.Dataset;
 import com.zjrcu.iras.bi.platform.domain.DashboardComponent;
-import com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldDTO;
-import com.zjrcu.iras.bi.platform.domain.dto.CalculatedFieldValidationResponse;
-import com.zjrcu.iras.bi.platform.domain.dto.ComponentPosition;
-import com.zjrcu.iras.bi.platform.domain.dto.QueryResult;
+import com.zjrcu.iras.bi.platform.domain.dto.*;
 import com.zjrcu.iras.bi.platform.engine.CalculatedFieldConverter;
 import com.zjrcu.iras.bi.platform.engine.DataSourceManager;
 import com.zjrcu.iras.bi.platform.engine.ExpressionParser;
@@ -23,8 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -313,7 +309,7 @@ public class ComponentServiceImpl implements IComponentService {
             }
 
             // 转换为DatasetFieldVO列表
-            List<com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO> datasetFields = convertToDatasetFieldVOs(datasetFieldMaps);
+            List<DatasetFieldVO> datasetFields = convertToDatasetFieldVOs(datasetFieldMaps);
 
             // 3. 验证表达式语法
             String expression = field.getExpression();
@@ -374,8 +370,8 @@ public class ComponentServiceImpl implements IComponentService {
     @Override
     public QueryResult testCalculatedField(Long datasetId, CalculatedFieldDTO field) {
         Connection connection = null;
-        java.sql.Statement statement = null;
-        java.sql.ResultSet resultSet = null;
+        Statement statement = null;
+        ResultSet resultSet = null;
 
         try {
             // 1. 先验证计算字段
@@ -394,7 +390,7 @@ public class ComponentServiceImpl implements IComponentService {
             List<Map<String, Object>> datasetFieldMaps = datasetService.getDatasetFields(datasetId);
 
             // 转换为DatasetFieldVO列表
-            List<com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO> datasetFields = convertToDatasetFieldVOs(datasetFieldMaps);
+            List<DatasetFieldVO> datasetFields = convertToDatasetFieldVOs(datasetFieldMaps);
 
             // 4. 构建测试SQL
             String dbType = dataset.getDataSource() != null ? dataset.getDataSource().getType() : "MySQL";
@@ -425,7 +421,7 @@ public class ComponentServiceImpl implements IComponentService {
             result.setSuccess(true);
 
             // 获取列元数据
-            java.sql.ResultSetMetaData metaData = resultSet.getMetaData();
+            ResultSetMetaData metaData = resultSet.getMetaData();
             int columnCount = metaData.getColumnCount();
             
             List<QueryResult.FieldMetadata> fields = new ArrayList<>();
@@ -513,16 +509,16 @@ public class ComponentServiceImpl implements IComponentService {
      * @param fieldMaps 字段Map列表
      * @return DatasetFieldVO列表
      */
-    private List<com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO> convertToDatasetFieldVOs(
+    private List<DatasetFieldVO> convertToDatasetFieldVOs(
             List<Map<String, Object>> fieldMaps) {
         if (fieldMaps == null || fieldMaps.isEmpty()) {
             return new ArrayList<>();
         }
 
-        List<com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO> result = new ArrayList<>();
+        List<DatasetFieldVO> result = new ArrayList<>();
         for (Map<String, Object> map : fieldMaps) {
-            com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO vo = 
-                    new com.zjrcu.iras.bi.platform.domain.dto.DatasetFieldVO();
+            DatasetFieldVO vo =
+                    new DatasetFieldVO();
             vo.setFieldName((String) map.get("name"));
             vo.setFieldType((String) map.get("type"));
             vo.setFieldComment((String) map.get("comment"));

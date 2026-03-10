@@ -1,12 +1,11 @@
 package com.zjrcu.iras.bi.platform.controller;
 
 import com.zjrcu.iras.bi.platform.domain.Dashboard;
-import com.zjrcu.iras.bi.platform.domain.ShareLink;
 import com.zjrcu.iras.bi.platform.domain.dto.DashboardConfig;
 import com.zjrcu.iras.bi.platform.domain.dto.Filter;
 import com.zjrcu.iras.bi.platform.service.IDashboardService;
 import com.zjrcu.iras.bi.platform.service.IShareLinkService;
-import com.zjrcu.iras.bi.platform.service.ShareLinkAccessResult;
+import com.zjrcu.iras.bi.platform.domain.ShareLinkAccessResult;
 import com.zjrcu.iras.common.core.controller.BaseController;
 import com.zjrcu.iras.common.core.domain.AjaxResult;
 import io.swagger.v3.oas.annotations.Operation;

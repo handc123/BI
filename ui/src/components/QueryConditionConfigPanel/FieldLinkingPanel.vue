@@ -20,20 +20,30 @@
             class="chart-list-item"
           >
             <div class="chart-item-header">
-              <el-checkbox
-                v-model="selectedComponents[getComponentKey(component)]"
-                @change="() => handleComponentSelection(getComponentKey(component))"
-              >
-                <div class="chart-item-title">
+              <div class="chart-item-main">
+                <el-checkbox
+                  v-model="selectedComponents[getComponentKey(component)]"
+                  @change="() => handleComponentSelection(getComponentKey(component))"
+                />
+                <div
+                  class="chart-item-title"
+                  @click.stop="toggleComponentExpand(getComponentKey(component))"
+                >
                   <i :class="getComponentIcon(component.type)"></i>
                   <span class="chart-name">{{ component.name }}</span>
                   <el-tag size="mini" type="info">{{ getDatasetName(component) }}</el-tag>
                 </div>
-              </el-checkbox>
+              </div>
+              <el-button
+                type="text"
+                size="mini"
+                :icon="expandedComponents[getComponentKey(component)] ? 'el-icon-arrow-up' : 'el-icon-arrow-down'"
+                @click.stop="toggleComponentExpand(getComponentKey(component))"
+              />
             </div>
 
             <!-- 展开的字段列表 -->
-            <div v-if="selectedComponents[getComponentKey(component)]" class="chart-item-fields">
+            <div v-if="expandedComponents[getComponentKey(component)]" class="chart-item-fields">
               <!-- 维度字段 -->
               <div v-if="getDimensionFields(component).length > 0" class="field-section">
                 <div class="field-section-title">
@@ -155,6 +165,7 @@ export default {
       selectAll: false,
       isIndeterminate: false,
       selectedComponents: {}, // 组件ID -> 是否选中
+      expandedComponents: {}, // 组件ID -> 是否展开
       selectedComponentFields: {}, // 组件ID -> {dimensions: [], metrics: []}
       datasetFieldsCache: {}, // datasetId -> {dimensions: [], metrics: [], all: []}
       updateTimer: null // 防抖计时器
@@ -172,7 +183,7 @@ export default {
       if (!this.selectedCondition) {
         return []
       }
-      return this.mappings.filter(m => m.conditionId === this.selectedCondition.id)
+      return this.mappings.filter(m => this.isSameId(m.conditionId, this.selectedCondition.id))
     },
 
     mappedFieldsCount() {
@@ -246,8 +257,11 @@ export default {
           if (!this.selectedComponentFields[key]) {
             this.$set(this.selectedComponentFields, key, { dimensions: [], metrics: [] })
           }
-          if (!this.selectedComponents[key]) {
+          if (this.selectedComponents[key] === undefined) {
             this.$set(this.selectedComponents, key, false)
+          }
+          if (this.expandedComponents[key] === undefined) {
+            this.$set(this.expandedComponents, key, false)
           }
         })
       },
@@ -264,6 +278,30 @@ export default {
     }
   },
   methods: {
+    isSameId(left, right) {
+      if (left === undefined || left === null || right === undefined || right === null) {
+        return false
+      }
+      return String(left) === String(right)
+    },
+
+    toLongId(id) {
+      if (id === undefined || id === null || id === '') {
+        return null
+      }
+      if (typeof id === 'number' && Number.isFinite(id)) {
+        return id
+      }
+      const text = String(id).trim()
+      if (!text) {
+        return null
+      }
+      if (/^\d+$/.test(text)) {
+        return Number(text)
+      }
+      return null
+    },
+
     /**
      * 防抖更新映射
      */
@@ -296,6 +334,7 @@ export default {
           componentMappings.forEach(m => {
             const componentKey = m.componentId
             this.$set(this.selectedComponents, componentKey, true)
+            this.$set(this.expandedComponents, componentKey, true)
 
             // 初始化字段选择
             if (!componentFieldsMap[componentKey]) {
@@ -332,6 +371,7 @@ export default {
       this.selectAll = false
       this.isIndeterminate = false
       this.selectedComponents = {}
+      this.expandedComponents = {}
       this.selectedComponentFields = {}
     },
 
@@ -395,13 +435,29 @@ export default {
     },
 
     handleComponentSelection(componentKey) {
-      // 确保被选中的组件已初始化字段对象
       if (this.selectedComponents[componentKey] && !this.selectedComponentFields[componentKey]) {
         this.$set(this.selectedComponentFields, componentKey, { dimensions: [], metrics: [] })
       }
+      if (this.selectedComponents[componentKey]) {
+        this.$set(this.expandedComponents, componentKey, true)
+      } else {
+        this.$set(this.expandedComponents, componentKey, false)
+      }
 
-      // 更新映射
       this.updateComponentMappings()
+    },
+
+    toggleComponentExpand(componentKey) {
+      if (!this.selectedComponents[componentKey]) {
+        this.$set(this.selectedComponents, componentKey, true)
+        if (!this.selectedComponentFields[componentKey]) {
+          this.$set(this.selectedComponentFields, componentKey, { dimensions: [], metrics: [] })
+        }
+        this.handleComponentSelection(componentKey)
+        this.$set(this.expandedComponents, componentKey, true)
+        return
+      }
+      this.$set(this.expandedComponents, componentKey, !this.expandedComponents[componentKey])
     },
 
     handleFieldChange(componentKey, fieldType, value) {
@@ -422,20 +478,32 @@ export default {
 
       // 构建组件字段映射
       const componentMappings = []
+      const existingComponentMappings = this.currentConditionMappings.filter(
+        m => m.mappingType === 'component'
+      )
 
       Object.keys(this.selectedComponents).forEach(componentKey => {
         if (!this.selectedComponents[componentKey]) {
           return // 未选中该组件，跳过
         }
 
-        const component = this.availableComponents.find(c => this.getComponentKey(c) === componentKey)
-        if (!component) return
+        const component = this.availableComponents.find(c => this.isSameId(this.getComponentKey(c), componentKey))
+        if (!component) {
+          // 组件列表暂未就绪时，保留该组件已有映射，避免误清空
+          const preservedMappings = existingComponentMappings.filter(
+            m => this.isSameId(m.componentId, componentKey)
+          )
+          componentMappings.push(...preservedMappings)
+          return
+        }
 
         const datasetId = component.dataConfig && component.dataConfig.datasetId
         const cachedData = datasetId && this.datasetFieldsCache[datasetId]
         const allCachedFields = cachedData ? (cachedData.all || []) : []
 
         const fields = this.selectedComponentFields[componentKey] || { dimensions: [], metrics: [] }
+        const resolvedComponentId = this.toLongId(component.id)
+        const targetComponentId = resolvedComponentId !== null ? resolvedComponentId : componentKey
 
         // 添加维度字段映射
         ;(fields.dimensions || []).forEach(fieldIdentifier => {
@@ -449,7 +517,8 @@ export default {
 
           componentMappings.push({
             conditionId: this.selectedCondition.id,
-            componentId: componentKey,
+            componentId: targetComponentId,
+            tableName: fieldInfo ? fieldInfo.tableName : null,
             fieldName: dbFieldName,  // 保存数据库字段名，不是显示名称
             fieldType: 'dimension',
             mappingType: 'component',
@@ -470,7 +539,8 @@ export default {
 
           componentMappings.push({
             conditionId: this.selectedCondition.id,
-            componentId: componentKey,
+            componentId: targetComponentId,
+            tableName: fieldInfo ? fieldInfo.tableName : null,
             fieldName: dbFieldName,  // 保存数据库字段名，不是显示名称
             fieldType: 'metric',
             mappingType: 'component',
@@ -569,8 +639,8 @@ export default {
     },
 
     getComponentKey(component) {
-      // 兼容两种组件结构：使用 i 或 id 作为唯一标识
-      return component.i || component.id || component.key
+      // 优先使用数据库组件ID，避免把布局临时ID写入映射
+      return String(component.id || component.i || component.key || '')
     },
 
     /**
@@ -676,14 +746,24 @@ export default {
       }
 
       .chart-item-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         padding: 12px;
         background: #fafafa;
         border-bottom: 1px solid #e4e7ed;
 
+        .chart-item-main {
+          display: flex;
+          align-items: center;
+          flex: 1;
+          min-width: 0;
+        }
+
         ::v-deep .el-checkbox {
           display: flex;
           align-items: center;
-          width: 100%;
+          flex-shrink: 0;
 
           .el-checkbox__label {
             width: 100%;
@@ -696,6 +776,8 @@ export default {
           align-items: center;
           gap: 8px;
           flex: 1;
+          min-width: 0;
+          cursor: pointer;
 
           i {
             font-size: 16px;

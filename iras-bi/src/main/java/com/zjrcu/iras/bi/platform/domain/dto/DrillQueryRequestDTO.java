@@ -18,7 +18,7 @@ public class DrillQueryRequestDTO implements Serializable {
     private Integer pageSize;
 
     /**
-     * 已带入条件(查询组件 + 口径条件)
+     * 已带入条件（查询组件 + 口径条件）
      */
     private List<DrillConditionDTO> inheritedConditions;
 
@@ -26,6 +26,11 @@ public class DrillQueryRequestDTO implements Serializable {
      * 用户动态规则组
      */
     private List<DrillRuleGroupDTO> ruleGroups;
+
+    /**
+     * 排序规则
+     */
+    private List<DrillSortRuleDTO> sortRules;
 
     public Long getMetricId() {
         return metricId;
@@ -90,5 +95,12 @@ public class DrillQueryRequestDTO implements Serializable {
     public void setRuleGroups(List<DrillRuleGroupDTO> ruleGroups) {
         this.ruleGroups = ruleGroups;
     }
-}
 
+    public List<DrillSortRuleDTO> getSortRules() {
+        return sortRules;
+    }
+
+    public void setSortRules(List<DrillSortRuleDTO> sortRules) {
+        this.sortRules = sortRules;
+    }
+}

@@ -44,6 +44,8 @@ public class ChartQueryRequest {
         
         /** 显示标签 */
         private String label;
+        private Boolean isCalculated;
+        private String expression;
 
         public String getField() {
             return field;
@@ -68,6 +70,22 @@ public class ChartQueryRequest {
         public void setLabel(String label) {
             this.label = label;
         }
+
+        public Boolean getIsCalculated() {
+            return isCalculated;
+        }
+
+        public void setIsCalculated(Boolean isCalculated) {
+            this.isCalculated = isCalculated;
+        }
+
+        public String getExpression() {
+            return expression;
+        }
+
+        public void setExpression(String expression) {
+            this.expression = expression;
+        }
     }
     
     /**
@@ -85,6 +103,8 @@ public class ChartQueryRequest {
         
         /** 轴类型: left(左轴), right(右轴) */
         private String axis;
+        private Boolean isCalculated;
+        private String expression;
 
         public String getField() {
             return field;
@@ -116,6 +136,22 @@ public class ChartQueryRequest {
 
         public void setAxis(String axis) {
             this.axis = axis;
+        }
+
+        public Boolean getIsCalculated() {
+            return isCalculated;
+        }
+
+        public void setIsCalculated(Boolean isCalculated) {
+            this.isCalculated = isCalculated;
+        }
+
+        public String getExpression() {
+            return expression;
+        }
+
+        public void setExpression(String expression) {
+            this.expression = expression;
         }
     }
 

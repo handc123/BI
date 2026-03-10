@@ -3,6 +3,8 @@ package com.zjrcu.iras.bi.platform.service.impl;
 import com.zjrcu.iras.bi.platform.domain.DataSource;
 import com.zjrcu.iras.bi.platform.domain.Dataset;
 import com.zjrcu.iras.bi.platform.domain.dto.ConnectionTestResult;
+import com.zjrcu.iras.bi.platform.domain.dto.TablePreviewData;
+import com.zjrcu.iras.bi.platform.domain.dto.TableSchemaInfo;
 import com.zjrcu.iras.bi.platform.engine.DataSourceManager;
 import com.zjrcu.iras.bi.platform.mapper.DataSourceMapper;
 import com.zjrcu.iras.bi.platform.mapper.DatasetMapper;
@@ -421,7 +423,7 @@ public class DataSourceServiceImpl implements IDataSourceService {
      * @return 表结构信息
      */
     @Override
-    public com.zjrcu.iras.bi.platform.domain.dto.TableSchemaInfo getTableSchema(Long dataSourceId, String tableName) {
+    public TableSchemaInfo getTableSchema(Long dataSourceId, String tableName) {
         if (dataSourceId == null) {
             throw new ServiceException("数据源ID不能为空");
         }
@@ -474,7 +476,7 @@ public class DataSourceServiceImpl implements IDataSourceService {
      * @return 表数据预览
      */
     @Override
-    public com.zjrcu.iras.bi.platform.domain.dto.TablePreviewData getTablePreview(Long dataSourceId, String tableName, int limit) {
+    public TablePreviewData getTablePreview(Long dataSourceId, String tableName, int limit) {
         if (dataSourceId == null) {
             throw new ServiceException("数据源ID不能为空");
         }
@@ -509,7 +511,7 @@ public class DataSourceServiceImpl implements IDataSourceService {
             }
 
             // 获取数据预览
-            com.zjrcu.iras.bi.platform.domain.dto.TablePreviewData preview = 
+            TablePreviewData preview =
                     dataSourceManager.getTablePreview(dataSourceId, tableName, limit);
             
             log.info("获取表数据预览成功: dataSourceId={}, tableName={}, previewRows={}, totalRows={}", 

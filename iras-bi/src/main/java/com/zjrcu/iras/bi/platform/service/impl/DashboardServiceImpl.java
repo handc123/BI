@@ -20,8 +20,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 仪表板Service业务层处理
@@ -201,6 +204,13 @@ public class DashboardServiceImpl implements IDashboardService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int saveDashboardConfig(Long dashboardId, DashboardConfig config) {
+        String requestId = UUID.randomUUID().toString().replace("-", "");
+        log.info("[DashboardConfig] start requestId={}, dashboardId={}, componentCount={}, conditionCount={}, mappingCount={}",
+                requestId,
+                dashboardId,
+                config != null && config.getComponents() != null ? config.getComponents().size() : 0,
+                config != null && config.getQueryConditions() != null ? config.getQueryConditions().size() : 0,
+                config != null && config.getConditionMappings() != null ? config.getConditionMappings().size() : 0);
         // 验证仪表板存在
         Dashboard dashboard = dashboardMapper.selectDashboardById(dashboardId);
         if (dashboard == null) {
@@ -221,6 +231,7 @@ public class DashboardServiceImpl implements IDashboardService {
             Map<String, Long> compMap = new HashMap<>();
             if (config.getComponents() != null) {
                 for (DashboardComponent component : config.getComponents()) {
+                    Long sourceId = component.getId();
                     String tempId = component.getTempId();
                     component.setDashboardId(dashboardId);
                     
@@ -234,6 +245,10 @@ public class DashboardServiceImpl implements IDashboardService {
                         // 支持字符串类型的临时ID（包括 "comp_xxx" 或 "-1" 这样的负数字符串）
                         compMap.put(tempId, component.getId());
                     }
+                    // 兼容编辑已有仪表板场景：建立“旧正式ID -> 新ID”的映射
+                    if (sourceId != null) {
+                        compMap.put(String.valueOf(sourceId), component.getId());
+                    }
                 }
             }
 
@@ -244,12 +259,34 @@ public class DashboardServiceImpl implements IDashboardService {
             Map<String, Long> condMap = new HashMap<>();
             if (config.getQueryConditions() != null) {
                 for (QueryCondition condition : config.getQueryConditions()) {
+                    Long sourceId = condition.getId();
                     String tempId = condition.getTempId();
+                    String tempComponentId = condition.getTempComponentId();
                     condition.setDashboardId(dashboardId);
+
+                    // 鏉′欢鎵€灞炴煡璇㈢粍浠禝D涔熼渶瑕佹槧灏勫埌鏈鏂扮敓鎴愮殑缁勪欢ID
+                    Long mappedQueryComponentId = null;
+                    if (StringUtils.isNotEmpty(tempComponentId)) {
+                        mappedQueryComponentId = compMap.get(tempComponentId);
+                    }
+                    if (mappedQueryComponentId == null && condition.getComponentId() != null) {
+                        mappedQueryComponentId = compMap.get(String.valueOf(condition.getComponentId()));
+                    }
+                    if (mappedQueryComponentId != null) {
+                        condition.setComponentId(mappedQueryComponentId);
+                    }
+                    if (condition.getComponentId() == null) {
+                        throw new ServiceException("鏌ヨ鏉′欢鍏宠仈缁勪欢ID涓嶈兘涓虹┖: " + condition.getConditionName());
+                    }
+
                     queryConditionMapper.insertCondition(condition);
                     if (StringUtils.isNotEmpty(tempId)) {
                         // 支持字符串类型的临时ID（包括 "-1", "-2" 这样的负数字符串）
                         condMap.put(tempId, condition.getId());
+                    }
+                    // 兼容编辑已有仪表板场景：建立“旧正式ID -> 新ID”的映射
+                    if (sourceId != null) {
+                        condMap.put(String.valueOf(sourceId), condition.getId());
                     }
                 }
             }
@@ -259,21 +296,24 @@ public class DashboardServiceImpl implements IDashboardService {
 
             // 插入新条件映射
             if (config.getConditionMappings() != null) {
-                log.info("开始保存条件映射，总数: {}", config.getConditionMappings().size());
+                log.info("[DashboardConfig] save mappings requestId={}, dashboardId={}, total={}",
+                        requestId, dashboardId, config.getConditionMappings().size());
                 log.info("组件ID映射表: {}", compMap);
                 log.info("条件ID映射表: {}", condMap);
 
+                Set<String> dedupKeys = new HashSet<>();
+
                 for (ConditionMapping mapping : config.getConditionMappings()) {
-                    // 强制根据 tempId 转换，忽略前端传来的原始 Long ID (防止外键冲突)
+                    // 优先使用 tempId 转换；若为编辑已有数据，则使用“旧正式ID -> 新ID”映射
                     String tempCompId = mapping.getTempComponentId();
                     String tempCondId = mapping.getTempConditionId();
 
                     Long realCompId = StringUtils.isNotEmpty(tempCompId)
                             ? compMap.get(tempCompId)
-                            : null;
+                            : (mapping.getComponentId() != null ? compMap.get(String.valueOf(mapping.getComponentId())) : null);
                     Long realCondId = StringUtils.isNotEmpty(tempCondId)
                             ? condMap.get(tempCondId)
-                            : null;
+                            : (mapping.getConditionId() != null ? condMap.get(String.valueOf(mapping.getConditionId())) : null);
 
                     log.debug("处理映射: tempCompId={}, tempCondId={}, realCompId={}, realCondId={}, fieldName={}",
                             tempCompId, tempCondId, realCompId, realCondId, mapping.getFieldName());
@@ -283,6 +323,12 @@ public class DashboardServiceImpl implements IDashboardService {
 
                     // 只有当两个核心关联ID都成功转换后才插入
                     if (mapping.getComponentId() != null && mapping.getConditionId() != null) {
+                        String normalizedField = mapping.getFieldName() == null ? "" : mapping.getFieldName().trim().toLowerCase();
+                        String dedupKey = mapping.getConditionId() + "|" + mapping.getComponentId() + "|" + normalizedField;
+                        if (!dedupKeys.add(dedupKey)) {
+                            log.warn("跳过重复映射: key={}, fieldName={}", dedupKey, mapping.getFieldName());
+                            continue;
+                        }
                         mapping.setId(null); // 确保是新插入
                         conditionMappingMapper.insertMapping(mapping);
                         log.info("成功插入映射: componentId={}, conditionId={}, fieldName={}",
@@ -293,11 +339,13 @@ public class DashboardServiceImpl implements IDashboardService {
                                 tempCompId, tempCondId, realCompId, realCondId);
                     }
                 }
-                log.info("条件映射保存完成");
+                log.info("[DashboardConfig] mappings done requestId={}, dashboardId={}", requestId, dashboardId);
             }
 
+            log.info("[DashboardConfig] finish requestId={}, dashboardId={}", requestId, dashboardId);
             return 1;
         } catch (Exception e) {
+            log.error("[DashboardConfig] failed requestId={}, dashboardId={}, error={}", requestId, dashboardId, e.getMessage(), e);
             throw new ServiceException("保存配置失败: " + e.getMessage());
         }
     }

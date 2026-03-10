@@ -1180,6 +1180,17 @@ export default {
                 label: metric.label || metric.comment || resolved.metricName
               })
               console.log('[ChartWidget] 解析到计算指标:', metric, '->', resolved.metricCode || resolved.metricName, 'ID:', resolved.id)
+            } else {
+              const calculatedField = metric ? (metric.field || metric.fieldName || metric.name || '') : ''
+              if (calculatedField) {
+                rawFieldCandidates.push({
+                  metricField: calculatedField,
+                  metricName: metric.label || metric.comment || metric.alias || calculatedField,
+                  datasetId: this.config?.dataConfig?.datasetId || null,
+                  isCalculated: true,
+                  expression: metric.expression || null
+                })
+              }
             }
             continue
           }

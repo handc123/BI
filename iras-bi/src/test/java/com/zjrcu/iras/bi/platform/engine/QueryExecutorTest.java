@@ -19,6 +19,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -39,7 +40,7 @@ class QueryExecutorTest {
     private Connection connection;
 
     @Mock
-    private Statement statement;
+    private PreparedStatement preparedStatement;
 
     @Mock
     private ResultSet resultSet;
@@ -49,6 +50,12 @@ class QueryExecutorTest {
 
     @InjectMocks
     private QueryExecutor queryExecutor;
+
+    @Mock
+    private QuerySqlParamBuilder querySqlParamBuilder;
+
+    @Mock
+    private CalculatedFieldConverter calculatedFieldConverter;
 
     private Dataset testDataset;
     private SysUser testUser;
@@ -135,14 +142,18 @@ class QueryExecutorTest {
         // 测试直连数据集查询成功
         when(datasetMapper.selectDatasetById(anyLong())).thenReturn(testDataset);
         when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
+        when(querySqlParamBuilder.buildWhereClause(eq(testDataset), any(), eq(testUser)))
+                .thenReturn(new QuerySqlParamBuilder.SqlFragment("", Collections.emptyList()));
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
         when(resultSet.getMetaData()).thenReturn(metaData);
 
         // 模拟结果集元数据
         when(metaData.getColumnCount()).thenReturn(2);
+        when(metaData.getColumnName(1)).thenReturn("user_id");
         when(metaData.getColumnLabel(1)).thenReturn("user_id");
         when(metaData.getColumnTypeName(1)).thenReturn("BIGINT");
+        when(metaData.getColumnName(2)).thenReturn("user_name");
         when(metaData.getColumnLabel(2)).thenReturn("user_name");
         when(metaData.getColumnTypeName(2)).thenReturn("VARCHAR");
 
@@ -157,53 +168,40 @@ class QueryExecutorTest {
         assertEquals(2, result.getTotalRows());
         assertEquals(2, result.getFields().size());
         assertEquals(2, result.getData().size());
+        verify(connection).prepareStatement(contains("FROM sys_user"));
+        verify(preparedStatement).executeQuery();
 
         verify(dataSourceManager).releaseConnection(connection);
     }
 
     @Test
-    void testExecuteQuery_WithFilters() throws SQLException {
-        // 测试带筛选条件的查询
+    void testExecuteQuery_WithFilters_ShouldBindPreparedStatementParams() throws SQLException {
         when(datasetMapper.selectDatasetById(anyLong())).thenReturn(testDataset);
         when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
+        when(querySqlParamBuilder.buildWhereClause(eq(testDataset), any(), eq(testUser)))
+                .thenReturn(new QuerySqlParamBuilder.SqlFragment(
+                        "user_name = ? AND dept_id = ?",
+                        Arrays.asList("admin", 100L)
+                ));
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
         when(resultSet.getMetaData()).thenReturn(metaData);
         when(metaData.getColumnCount()).thenReturn(1);
+        when(metaData.getColumnName(1)).thenReturn("user_id");
         when(metaData.getColumnLabel(1)).thenReturn("user_id");
         when(metaData.getColumnTypeName(1)).thenReturn("BIGINT");
         when(resultSet.next()).thenReturn(false);
 
-        // 创建筛选条件
         List<Filter> filters = new ArrayList<>();
         filters.add(new Filter("user_name", "eq", "admin"));
-        filters.add(new Filter("status", "ne", "1"));
 
         QueryResult result = queryExecutor.executeQuery(1L, filters, testUser);
 
         assertTrue(result.isSuccess());
-        verify(statement).executeQuery(contains("user_name = 'admin'"));
-        verify(statement).executeQuery(contains("status != '1'"));
-    }
-
-    @Test
-    void testExecuteQuery_WithPermissionFilter() throws SQLException {
-        // 测试权限过滤(基于用户部门ID)
-        when(datasetMapper.selectDatasetById(anyLong())).thenReturn(testDataset);
-        when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
-        when(resultSet.getMetaData()).thenReturn(metaData);
-        when(metaData.getColumnCount()).thenReturn(1);
-        when(metaData.getColumnLabel(1)).thenReturn("user_id");
-        when(metaData.getColumnTypeName(1)).thenReturn("BIGINT");
-        when(resultSet.next()).thenReturn(false);
-
-        QueryResult result = queryExecutor.executeQuery(1L, null, testUser);
-
-        assertTrue(result.isSuccess());
-        // 验证SQL包含部门ID过滤条件
-        verify(statement).executeQuery(contains("dept_id = 100"));
+        verify(connection).prepareStatement(contains("WHERE user_name = ? AND dept_id = ?"));
+        verify(preparedStatement).setObject(1, "admin");
+        verify(preparedStatement).setObject(2, 100L);
+        verify(preparedStatement).executeQuery();
     }
 
     @Test
@@ -214,10 +212,11 @@ class QueryExecutorTest {
 
         try {
             when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-            when(connection.createStatement()).thenReturn(statement);
-            when(statement.executeQuery(anyString())).thenReturn(resultSet);
+            when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+            when(preparedStatement.executeQuery()).thenReturn(resultSet);
             when(resultSet.getMetaData()).thenReturn(metaData);
             when(metaData.getColumnCount()).thenReturn(1);
+            when(metaData.getColumnName(1)).thenReturn("data_content");
             when(metaData.getColumnLabel(1)).thenReturn("data_content");
             when(metaData.getColumnTypeName(1)).thenReturn("TEXT");
             when(resultSet.next()).thenReturn(false);
@@ -225,7 +224,9 @@ class QueryExecutorTest {
             QueryResult result = queryExecutor.executeQuery(1L, null, testUser);
 
             assertTrue(result.isSuccess());
-            verify(statement).executeQuery(contains("bi_extract_data"));
+            verify(connection).prepareStatement(contains("bi_extract_data"));
+            verify(preparedStatement).setObject(1, 1L);
+            verify(preparedStatement).executeQuery();
         } catch (SQLException e) {
             fail("不应该抛出异常");
         }
@@ -236,8 +237,10 @@ class QueryExecutorTest {
         // 测试查询超时
         when(datasetMapper.selectDatasetById(anyLong())).thenReturn(testDataset);
         when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenThrow(new SQLTimeoutException("查询超时"));
+        when(querySqlParamBuilder.buildWhereClause(eq(testDataset), any(), eq(testUser)))
+                .thenReturn(new QuerySqlParamBuilder.SqlFragment("", Collections.emptyList()));
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(preparedStatement.executeQuery()).thenThrow(new SQLTimeoutException("查询超时"));
 
         QueryResult result = queryExecutor.executeQuery(1L, null, testUser);
 
@@ -269,14 +272,18 @@ class QueryExecutorTest {
         // 测试聚合查询成功
         when(datasetMapper.selectDatasetById(anyLong())).thenReturn(testDataset);
         when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
+        when(querySqlParamBuilder.buildWhereClause(eq(testDataset), any(), eq(testUser)))
+                .thenReturn(new QuerySqlParamBuilder.SqlFragment("dept_id = ?", Collections.singletonList(100L)));
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
         when(resultSet.getMetaData()).thenReturn(metaData);
 
         // 模拟聚合结果: dept_id, COUNT(*)
         when(metaData.getColumnCount()).thenReturn(2);
+        when(metaData.getColumnName(1)).thenReturn("dept_id");
         when(metaData.getColumnLabel(1)).thenReturn("dept_id");
         when(metaData.getColumnTypeName(1)).thenReturn("BIGINT");
+        when(metaData.getColumnName(2)).thenReturn("user_count");
         when(metaData.getColumnLabel(2)).thenReturn("user_count");
         when(metaData.getColumnTypeName(2)).thenReturn("BIGINT");
 
@@ -291,51 +298,34 @@ class QueryExecutorTest {
 
         assertTrue(result.isSuccess());
         assertEquals(1, result.getTotalRows());
-        verify(statement).executeQuery(contains("GROUP BY"));
-        verify(statement).executeQuery(contains("COUNT(user_id)"));
+        verify(connection).prepareStatement(contains("GROUP BY"));
+        verify(connection).prepareStatement(contains("COUNT(user_id)"));
+        verify(preparedStatement).setObject(1, 100L);
+        verify(preparedStatement).executeQuery();
     }
 
     @Test
-    void testFilterOperators() throws SQLException {
-        // 测试各种筛选操作符
+    void testExecuteAggregation_EmptyWhereClause_ShouldNotBindParams() throws SQLException {
         when(datasetMapper.selectDatasetById(anyLong())).thenReturn(testDataset);
         when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
+        when(querySqlParamBuilder.buildWhereClause(eq(testDataset), any(), eq(testUser)))
+                .thenReturn(new QuerySqlParamBuilder.SqlFragment("", Collections.emptyList()));
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
         when(resultSet.getMetaData()).thenReturn(metaData);
         when(metaData.getColumnCount()).thenReturn(1);
-        when(metaData.getColumnLabel(1)).thenReturn("user_id");
+        when(metaData.getColumnName(1)).thenReturn("dept_id");
+        when(metaData.getColumnLabel(1)).thenReturn("dept_id");
         when(metaData.getColumnTypeName(1)).thenReturn("BIGINT");
         when(resultSet.next()).thenReturn(false);
 
-        // 测试like操作符
-        List<Filter> filters = Arrays.asList(new Filter("user_name", "like", "admin"));
-        queryExecutor.executeQuery(1L, filters, testUser);
-        verify(statement).executeQuery(contains("LIKE '%admin%'"));
+        List<String> dimensions = Collections.singletonList("dept_id");
+        List<Metric> metrics = Collections.singletonList(new Metric("user_id", "COUNT", "user_count"));
 
-        // 测试in操作符
-        reset(statement);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
-        Filter inFilter = new Filter();
-        inFilter.setField("status");
-        inFilter.setOperator("in");
-        inFilter.setValues(Arrays.asList("0", "1"));
-        filters = Arrays.asList(inFilter);
-        queryExecutor.executeQuery(1L, filters, testUser);
-        verify(statement).executeQuery(contains("IN ("));
+        QueryResult result = queryExecutor.executeAggregation(1L, dimensions, metrics, null, testUser);
 
-        // 测试between操作符
-        reset(statement);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
-        Filter betweenFilter = new Filter();
-        betweenFilter.setField("create_time");
-        betweenFilter.setOperator("between");
-        betweenFilter.setValues(Arrays.asList("2024-01-01", "2024-12-31"));
-        filters = Arrays.asList(betweenFilter);
-        queryExecutor.executeQuery(1L, filters, testUser);
-        verify(statement).executeQuery(contains("BETWEEN"));
+        assertTrue(result.isSuccess());
+        verify(preparedStatement, never()).setObject(anyInt(), any());
     }
 
     @Test
@@ -359,10 +349,13 @@ class QueryExecutorTest {
 
         when(datasetMapper.selectDatasetById(anyLong())).thenReturn(testDataset);
         when(dataSourceManager.getConnection(anyLong())).thenReturn(connection);
-        when(connection.createStatement()).thenReturn(statement);
-        when(statement.executeQuery(anyString())).thenReturn(resultSet);
+        when(querySqlParamBuilder.buildWhereClause(eq(testDataset), any(), eq(testUser)))
+                .thenReturn(new QuerySqlParamBuilder.SqlFragment("", Collections.emptyList()));
+        when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
+        when(preparedStatement.executeQuery()).thenReturn(resultSet);
         when(resultSet.getMetaData()).thenReturn(metaData);
         when(metaData.getColumnCount()).thenReturn(1);
+        when(metaData.getColumnName(1)).thenReturn("profit_margin");
         when(metaData.getColumnLabel(1)).thenReturn("profit_margin");
         when(metaData.getColumnTypeName(1)).thenReturn("DECIMAL");
         when(resultSet.next()).thenReturn(false);
@@ -371,6 +364,7 @@ class QueryExecutorTest {
 
         assertTrue(result.isSuccess());
         // 验证SQL包含计算字段表达式
-        verify(statement).executeQuery(contains("profit / revenue * 100"));
+        verify(connection).prepareStatement(contains("profit / revenue * 100"));
+        verify(preparedStatement).executeQuery();
     }
 }

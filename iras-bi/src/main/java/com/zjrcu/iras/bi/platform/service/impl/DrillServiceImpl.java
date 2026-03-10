@@ -9,6 +9,8 @@ import com.zjrcu.iras.bi.platform.service.IQueryExecutor;
 import com.zjrcu.iras.common.exception.ServiceException;
 import com.zjrcu.iras.common.utils.SecurityUtils;
 import com.zjrcu.iras.common.utils.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
  */
 @Service
 public class DrillServiceImpl implements IDrillService {
+    private static final Logger log = LoggerFactory.getLogger(DrillServiceImpl.class);
     private static final Set<String> ALLOWED_OPERATORS = new HashSet<>(Arrays.asList(
         "EQ", "NE", "GT", "GTE", "LT", "LTE", "LIKE", "IN", "NOT_IN", "BETWEEN", "IS_NULL", "IS_NOT_NULL"
     ));
@@ -65,6 +68,13 @@ public class DrillServiceImpl implements IDrillService {
 
     @Override
     public Map<String, Object> executeDrillQuery(DrillQueryRequestDTO request) {
+        String requestId = UUID.randomUUID().toString().replace("-", "");
+        log.info("[DrillQuery] start requestId={}, metricId={}, datasetId={}, pageNum={}, pageSize={}",
+                requestId,
+                request != null ? request.getMetricId() : null,
+                request != null ? request.getDatasetId() : null,
+                request != null ? request.getPageNum() : null,
+                request != null ? request.getPageSize() : null);
         if (request == null || request.getMetricId() == null) {
             throw new ServiceException("metricId不能为空");
         }
@@ -79,19 +89,31 @@ public class DrillServiceImpl implements IDrillService {
             throw new ServiceException("指标未关联数据集");
         }
 
-        return executeOnDataset(
+        Map<String, Object> result = executeOnDataset(
             datasetId,
             request.getMetricId(),
             null,
             request.getInheritedConditions(),
             request.getRuleGroups(),
+            request.getSortRules(),
             request.getPageNum(),
             request.getPageSize()
         );
+        log.info("[DrillQuery] finish requestId={}, metricId={}, datasetId={}, total={}",
+                requestId, request.getMetricId(), datasetId, result.get("total"));
+        return result;
     }
 
     @Override
     public Map<String, Object> executeDrillFieldQuery(DrillFieldQueryRequestDTO request) {
+        String requestId = UUID.randomUUID().toString().replace("-", "");
+        log.info("[DrillFieldQuery] start requestId={}, componentId={}, datasetId={}, metricField={}, pageNum={}, pageSize={}",
+                requestId,
+                request != null ? request.getComponentId() : null,
+                request != null ? request.getDatasetId() : null,
+                request != null ? request.getMetricField() : null,
+                request != null ? request.getPageNum() : null,
+                request != null ? request.getPageSize() : null);
         if (request == null || request.getDatasetId() == null) {
             throw new ServiceException("datasetId不能为空");
         }
@@ -99,15 +121,19 @@ public class DrillServiceImpl implements IDrillService {
             throw new ServiceException("metricField不能为空");
         }
 
-        return executeOnDataset(
+        Map<String, Object> result = executeOnDataset(
             request.getDatasetId(),
             null,
             request.getMetricField(),
             request.getInheritedConditions(),
             request.getRuleGroups(),
+            request.getSortRules(),
             request.getPageNum(),
             request.getPageSize()
         );
+        log.info("[DrillFieldQuery] finish requestId={}, componentId={}, datasetId={}, metricField={}, total={}",
+                requestId, request.getComponentId(), request.getDatasetId(), request.getMetricField(), result.get("total"));
+        return result;
     }
 
     private Map<String, Object> executeOnDataset(Long datasetId,
@@ -115,6 +141,7 @@ public class DrillServiceImpl implements IDrillService {
                                                  String metricField,
                                                  List<DrillConditionDTO> inheritedConditions,
                                                  List<DrillRuleGroupDTO> ruleGroups,
+                                                 List<DrillSortRuleDTO> sortRules,
                                                  Integer requestPageNum,
                                                  Integer requestPageSize) {
         Map<String, DatasetFieldVO> fieldMap = buildDatasetFieldMap(datasetId);
@@ -153,6 +180,7 @@ public class DrillServiceImpl implements IDrillService {
         List<Map<String, Object>> allRows = queryResult.getData() != null ? queryResult.getData() : Collections.emptyList();
         List<Map<String, Object>> filteredRows = applyConditions(allRows, inheritedMemory);
         filteredRows = applyRuleGroups(filteredRows, normalizedRuleGroups);
+        filteredRows = applySortRules(filteredRows, normalizeSortRules(sortRules, fieldMap));
 
         int pageNum = requestPageNum != null && requestPageNum > 0 ? requestPageNum : 1;
         int pageSize = requestPageSize != null && requestPageSize > 0 ? requestPageSize : 20;
@@ -170,6 +198,60 @@ public class DrillServiceImpl implements IDrillService {
         result.put("rows", pageRows);
         result.put("fields", queryResult.getFields());
         return result;
+    }
+
+    private List<DrillSortRuleDTO> normalizeSortRules(List<DrillSortRuleDTO> sortRules,
+                                                      Map<String, DatasetFieldVO> fieldMap) {
+        if (sortRules == null || sortRules.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<DrillSortRuleDTO> normalized = new ArrayList<>();
+        for (DrillSortRuleDTO sortRule : sortRules) {
+            if (sortRule == null) {
+                continue;
+            }
+            String field = sortRule.getField();
+            if (StringUtils.isEmpty(field)) {
+                throw new ServiceException("排序字段不能为空");
+            }
+            DatasetFieldVO fieldVO = fieldMap.get(field.trim().toLowerCase());
+            if (fieldVO == null) {
+                throw new ServiceException("排序字段不在数据集字段范围内: " + field);
+            }
+            String order = StringUtils.isEmpty(sortRule.getOrder()) ? "ASC" : sortRule.getOrder().trim().toUpperCase();
+            if (!"ASC".equals(order) && !"DESC".equals(order)) {
+                throw new ServiceException("排序方向仅支持 ASC/DESC");
+            }
+            DrillSortRuleDTO normalizedRule = new DrillSortRuleDTO();
+            normalizedRule.setField(fieldVO.getFieldName());
+            normalizedRule.setOrder(order);
+            normalized.add(normalizedRule);
+        }
+        return normalized;
+    }
+
+    private List<Map<String, Object>> applySortRules(List<Map<String, Object>> rows, List<DrillSortRuleDTO> sortRules) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (sortRules == null || sortRules.isEmpty()) {
+            return rows;
+        }
+        List<Map<String, Object>> sorted = new ArrayList<>(rows);
+        Comparator<Map<String, Object>> comparator = null;
+        for (DrillSortRuleDTO sortRule : sortRules) {
+            Comparator<Map<String, Object>> current = (left, right) -> {
+                Object leftVal = getFieldValue(left, sortRule.getField());
+                Object rightVal = getFieldValue(right, sortRule.getField());
+                int cmp = compare(leftVal, rightVal);
+                return "DESC".equals(sortRule.getOrder()) ? -cmp : cmp;
+            };
+            comparator = comparator == null ? current : comparator.thenComparing(current);
+        }
+        if (comparator != null) {
+            sorted.sort(comparator);
+        }
+        return sorted;
     }
 
     private Map<String, DatasetFieldVO> buildDatasetFieldMap(Long datasetId) {

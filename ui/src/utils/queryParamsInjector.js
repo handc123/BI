@@ -10,6 +10,13 @@
  * @param {Object} conditionValues - 查询条件值 {conditionId: value}
  * @returns {Object} 合并后的查询参数
  */
+function isSameId(left, right) {
+  if (left === undefined || left === null || right === undefined || right === null) {
+    return false
+  }
+  return String(left) === String(right)
+}
+
 export function injectQueryParams(component, conditionMappings, conditionValues) {
   console.log('[injectQueryParams] 输入参数:', {
     componentId: component.id,
@@ -23,7 +30,7 @@ export function injectQueryParams(component, conditionMappings, conditionValues)
 
   // 获取该组件的所有映射
   const componentMappings = conditionMappings.filter(
-    m => m.componentId === component.id
+    m => isSameId(m.componentId, component.id)
   )
 
   console.log('[injectQueryParams] 该组件的映射数量:', componentMappings.length)
@@ -31,6 +38,9 @@ export function injectQueryParams(component, conditionMappings, conditionValues)
 
   // 注入映射的条件值
   componentMappings.forEach(mapping => {
+    if (!mapping || !mapping.fieldName) {
+      return
+    }
     const conditionId = mapping.conditionId
 
     // 检查是否有日期范围类型的值（分开存储 _start 和 _end）
@@ -90,7 +100,7 @@ export function injectQueryParams(component, conditionMappings, conditionValues)
  */
 export function getComponentConditionDependencies(component, conditionMappings) {
   return conditionMappings
-    .filter(m => m.componentId === component.id)
+    .filter(m => isSameId(m.componentId, component.id))
     .map(m => m.conditionId)
 }
 
@@ -102,7 +112,7 @@ export function getComponentConditionDependencies(component, conditionMappings) 
  */
 export function getAffectedComponents(conditionId, conditionMappings) {
   return conditionMappings
-    .filter(m => m.conditionId === conditionId)
+    .filter(m => isSameId(m.conditionId, conditionId))
     .map(m => m.componentId)
 }
 
@@ -136,11 +146,11 @@ export function validateQueryParams(component, params, queryConditions, conditio
 
   // 获取该组件的所有必填条件映射
   const componentMappings = conditionMappings.filter(
-    m => m.componentId === component.id
+    m => isSameId(m.componentId, component.id)
   )
 
   componentMappings.forEach(mapping => {
-    const condition = queryConditions.find(c => c.id === mapping.conditionId)
+    const condition = queryConditions.find(c => isSameId(c.id, mapping.conditionId))
     if (condition && condition.isRequired === '1') {
       const value = params[mapping.fieldName]
 

@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,6 +53,62 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
     @Override
     public QueryCondition selectConditionById(Long id) {
         return queryConditionMapper.selectConditionById(id);
+    }
+
+    private List<CalculatedFieldDTO> resolveCalculatedFields(ChartQueryRequest queryRequest) {
+        if (queryRequest == null) {
+            return null;
+        }
+
+        List<CalculatedFieldDTO> calculatedFields = queryRequest.getCalculatedFields();
+        if (calculatedFields != null && !calculatedFields.isEmpty()) {
+            return calculatedFields;
+        }
+
+        List<CalculatedFieldDTO> inferred = new ArrayList<>();
+        if (queryRequest.getMetrics() != null) {
+            for (ChartQueryRequest.MetricConfig metric : queryRequest.getMetrics()) {
+                if (metric == null) {
+                    continue;
+                }
+                if (!Boolean.TRUE.equals(metric.getIsCalculated())) {
+                    continue;
+                }
+                if (StringUtils.isEmpty(metric.getField()) || StringUtils.isEmpty(metric.getExpression())) {
+                    continue;
+                }
+
+                CalculatedFieldDTO dto = new CalculatedFieldDTO();
+                dto.setName(metric.getField());
+                dto.setExpression(metric.getExpression());
+                dto.setFieldType("metric");
+                dto.setAggregation(StringUtils.isNotEmpty(metric.getAggregation()) ? metric.getAggregation() : "AUTO");
+                inferred.add(dto);
+            }
+        }
+
+        if (queryRequest.getDimensions() != null) {
+            for (ChartQueryRequest.DimensionConfig dim : queryRequest.getDimensions()) {
+                if (dim == null) {
+                    continue;
+                }
+                if (!Boolean.TRUE.equals(dim.getIsCalculated())) {
+                    continue;
+                }
+                if (StringUtils.isEmpty(dim.getField()) || StringUtils.isEmpty(dim.getExpression())) {
+                    continue;
+                }
+
+                CalculatedFieldDTO dto = new CalculatedFieldDTO();
+                dto.setName(dim.getField());
+                dto.setExpression(dim.getExpression());
+                dto.setFieldType("dimension");
+                dto.setAggregation("AUTO");
+                inferred.add(dto);
+            }
+        }
+
+        return inferred.isEmpty() ? null : inferred;
     }
 
     /**
@@ -438,18 +495,19 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
                 }
                 
                 // 使用聚合查询（支持计算字段）
+                List<CalculatedFieldDTO> resolvedCalculatedFields = resolveCalculatedFields(queryRequest);
                 result = queryExecutor.executeAggregation(
                     queryRequest.getDatasetId(),
                     dimensionFields,
                     metricList,
                     filters,
-                    queryRequest.getCalculatedFields(),
+                    resolvedCalculatedFields,
                     SecurityUtils.getLoginUser().getUser()
                 );
                 
                 log.debug("执行聚合查询: datasetId={}, dimensions={}, metrics={}, calculatedFields={}", 
                     queryRequest.getDatasetId(), dimensionFields.size(), metricList.size(), 
-                    queryRequest.getCalculatedFields() != null ? queryRequest.getCalculatedFields().size() : 0);
+                    resolvedCalculatedFields != null ? resolvedCalculatedFields.size() : 0);
             } else {
                 // 没有维度和指标配置，使用基础查询返回原始数据
                 result = queryExecutor.executeQuery(
@@ -541,11 +599,16 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
                 // 验证每个映射的必填字段
                 for (int i = 0; i < condition.getMappings().size(); i++) {
                     QueryConditionConfigDTO.ConditionMappingDTO mapping = condition.getMappings().get(i);
-                    
-                    if (StringUtils.isEmpty(mapping.getTableName())) {
+
+                    // 组件映射（按图表字段关联）可能不依赖物理表名，仅校验字段名即可
+                    boolean isComponentMapping = "component".equalsIgnoreCase(mapping.getMappingType());
+                    if (isComponentMapping && mapping.getComponentId() == null) {
+                        result.addError(conditionId, "mappings[" + i + "].componentId", "组件ID不能为空");
+                    }
+                    if (!isComponentMapping && StringUtils.isEmpty(mapping.getTableName())) {
                         result.addError(conditionId, "mappings[" + i + "].tableName", "表名不能为空");
                     }
-                    
+
                     if (StringUtils.isEmpty(mapping.getFieldName())) {
                         result.addError(conditionId, "mappings[" + i + "].fieldName", "字段名不能为空");
                     }
@@ -655,6 +718,10 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
         validTypes.add("text");
         validTypes.add("number");
         validTypes.add("range");
+        validTypes.add("organization");
+        validTypes.add("dept");
+        validTypes.add("dept_tree");
+        validTypes.add("user");
         return validTypes.contains(displayType.toLowerCase());
     }
 
@@ -687,6 +754,10 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
                     // 验证日期范围格式 (例如: "2024-01-01,2024-12-31")
                     return defaultValue.contains(",") || defaultValue.contains("~");
                 case "dropdown":
+                case "organization":
+                case "dept":
+                case "dept_tree":
+                case "user":
                 case "text":
                 case "range":
                 default:
@@ -745,7 +816,17 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
 
         int totalCount = 0;
 
-        // 删除组件的旧条件和映射
+        // 删除查询组件的旧条件对应的全部映射
+        // 注意：映射中的 component_id 现在存的是“目标图表组件ID”，不能仅按查询组件ID删除
+        List<QueryCondition> existingConditions = queryConditionMapper.selectConditionsByComponentId(config.getComponentId());
+        if (existingConditions != null && !existingConditions.isEmpty()) {
+            for (QueryCondition existingCondition : existingConditions) {
+                if (existingCondition != null && existingCondition.getId() != null) {
+                    conditionMappingMapper.deleteMappingByConditionId(existingCondition.getId());
+                }
+            }
+        }
+        // 兼容历史数据：旧版本映射可能使用查询组件ID存储
         conditionMappingMapper.deleteMappingByComponentId(config.getComponentId());
         queryConditionMapper.deleteConditionByComponentId(config.getComponentId());
 
@@ -779,11 +860,33 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
 
                     // 保存字段映射
                     if (conditionDto.getMappings() != null && !conditionDto.getMappings().isEmpty()) {
-                        List<ConditionMapping> mappings = new ArrayList<>();
+                        // 同一条件下，按“目标组件ID+字段名”去重，避免触发唯一键 (condition_id, component_id, field_name)
+                        Map<String, QueryConditionConfigDTO.ConditionMappingDTO> deduplicatedMappings = new LinkedHashMap<>();
                         for (QueryConditionConfigDTO.ConditionMappingDTO mappingDto : conditionDto.getMappings()) {
+                            if (mappingDto == null || StringUtils.isEmpty(mappingDto.getFieldName())) {
+                                continue;
+                            }
+
+                            Long targetComponentId = mappingDto.getComponentId() != null
+                                ? mappingDto.getComponentId()
+                                : config.getComponentId();
+                            String fieldKey = targetComponentId + "|" + mappingDto.getFieldName().trim().toLowerCase();
+                            QueryConditionConfigDTO.ConditionMappingDTO existing = deduplicatedMappings.get(fieldKey);
+                            if (existing == null) {
+                                deduplicatedMappings.put(fieldKey, mappingDto);
+                            } else if (StringUtils.isEmpty(existing.getTableName()) && StringUtils.isNotEmpty(mappingDto.getTableName())) {
+                                // 重复项中优先保留有表名的记录
+                                existing.setTableName(mappingDto.getTableName());
+                            }
+                        }
+
+                        List<ConditionMapping> mappings = new ArrayList<>();
+                        for (QueryConditionConfigDTO.ConditionMappingDTO mappingDto : deduplicatedMappings.values()) {
                             ConditionMapping mapping = new ConditionMapping();
                             mapping.setConditionId(condition.getId());
-                            mapping.setComponentId(config.getComponentId());
+                            mapping.setComponentId(mappingDto.getComponentId() != null
+                                ? mappingDto.getComponentId()
+                                : config.getComponentId());
                             mapping.setTableName(mappingDto.getTableName());
                             mapping.setFieldName(mappingDto.getFieldName());
                             mapping.setMappingType(mappingDto.getMappingType() != null ? mappingDto.getMappingType() : "auto");
@@ -811,13 +914,13 @@ public class QueryConditionServiceImpl implements IQueryConditionService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public int reorderConditions(List<com.zjrcu.iras.bi.platform.domain.dto.ConditionOrderDTO> orders) {
+    public int reorderConditions(List<ConditionOrderDTO> orders) {
         if (orders == null || orders.isEmpty()) {
             throw new ServiceException("排序列表不能为空");
         }
 
         int count = 0;
-        for (com.zjrcu.iras.bi.platform.domain.dto.ConditionOrderDTO order : orders) {
+        for (ConditionOrderDTO order : orders) {
             if (order.getConditionId() == null) {
                 throw new ServiceException("条件ID不能为空");
             }

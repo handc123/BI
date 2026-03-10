@@ -1,6 +1,7 @@
 package com.zjrcu.iras.bi.platform.service;
 
 import com.zjrcu.iras.bi.platform.domain.ShareLink;
+import com.zjrcu.iras.bi.platform.domain.ShareLinkAccessResult;
 
 /**
  * 共享链接服务接口

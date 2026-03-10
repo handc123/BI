@@ -2,7 +2,7 @@ package com.zjrcu.iras.bi.platform.service.impl;
 
 import com.zjrcu.iras.bi.platform.domain.ShareLink;
 import com.zjrcu.iras.bi.platform.service.IShareLinkService;
-import com.zjrcu.iras.bi.platform.service.ShareLinkAccessResult;
+import com.zjrcu.iras.bi.platform.domain.ShareLinkAccessResult;
 import com.zjrcu.iras.common.exception.ServiceException;
 import com.zjrcu.iras.common.utils.StringUtils;
 import org.slf4j.Logger;

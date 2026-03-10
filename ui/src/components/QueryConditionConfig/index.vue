@@ -69,10 +69,10 @@ import FieldLinkingPanel from '@/components/QueryConditionConfigPanel/FieldLinki
 import DisplaySettingsPanel from '@/components/QueryConditionConfigPanel/DisplaySettingsPanel'
 import { 
   listConditions, 
-  saveConditionConfig, 
+  saveConditionConfig,
   deleteCondition,
   getDatasetFields,
-  validateConditionConfig 
+  validateConditionConfig
 } from '@/api/bi/condition'
 
 export default {
@@ -88,7 +88,7 @@ export default {
       default: false
     },
     componentId: {
-      type: Number,
+      type: [Number, String],
       default: null
     },
     dashboardId: {
@@ -115,6 +115,10 @@ export default {
     conditionMappings: {
       type: Array,
       default: () => []
+    },
+    saveMode: {
+      type: String,
+      default: 'aggregate'
     }
   },
   data() {
@@ -133,6 +137,12 @@ export default {
     }
   },
   computed: {
+    isAggregateMode() {
+      return this.saveMode !== 'direct'
+    },
+    normalizedComponentId() {
+      return this.resolveComponentId(this.componentId)
+    },
     selectedFieldTypes() {
       if (!this.selectedCondition) {
         return []
@@ -140,7 +150,7 @@ export default {
 
       // 获取当前条件关联的字段类型
       const conditionMappings = this.localMappings.filter(
-        m => m.conditionId === this.selectedCondition.id
+        m => this.isSameId(m.conditionId, this.selectedCondition.id)
       )
 
       const fieldTypes = []
@@ -197,21 +207,85 @@ export default {
     // 监听配置变化,实时验证
     localConditions: {
       handler() {
-        this.debouncedValidate()
+        if (this.dialogVisible) {
+          this.debouncedValidate()
+        }
       },
       deep: true
     },
     localMappings: {
       handler() {
-        this.debouncedValidate()
+        if (this.dialogVisible) {
+          this.debouncedValidate()
+        }
       },
       deep: true
     }
   },
   methods: {
+    toLongId(id) {
+      if (id === undefined || id === null || id === '') {
+        return null
+      }
+      if (typeof id === 'number' && Number.isFinite(id)) {
+        return id
+      }
+      const text = String(id).trim()
+      if (!text) {
+        return null
+      }
+      if (/^\d+$/.test(text)) {
+        return Number(text)
+      }
+      return null
+    },
+
+    resolveComponentId(id) {
+      const direct = this.toLongId(id)
+      if (direct !== null) {
+        return direct
+      }
+      if (id === undefined || id === null) {
+        return null
+      }
+      const text = String(id).trim()
+      if (!text) {
+        return null
+      }
+      const components = this.getAllComponents()
+      const target = components.find(c => String(this.getComponentKey(c)) === text)
+      if (!target) {
+        return null
+      }
+      return this.toLongId(target.componentId || target.id)
+    },
+
+    isSameId(left, right) {
+      if (left === undefined || left === null || right === undefined || right === null) {
+        return false
+      }
+      return String(left) === String(right)
+    },
+
     async handleOpen() {
-      // 如果传入了 conditions prop，使用传入的数据
-      if (this.conditions && this.conditions.length > 0) {
+      // 聚合保存模式始终使用父组件传入的数据，不直接落库
+      if (this.isAggregateMode) {
+        this.localConditions = (this.conditions || []).map(c => ({
+          ...c,
+          componentId: c.componentId !== undefined && c.componentId !== null ? c.componentId : this.componentId,
+          config: c.config ? { ...c.config } : {},
+          mappings: c.mappings ? c.mappings.map(m => ({ ...m })) : []
+        }))
+        this.localMappings = (this.conditionMappings || []).map(m => ({ ...m }))
+
+        if (this.localConditions.length > 0) {
+          const maxAbsId = Math.max(...this.localConditions.map(c => Math.abs(c.id || 0)))
+          this.conditionIdCounter = maxAbsId + 1
+        }
+        if (this.localConditions.length > 0 && !this.selectedCondition) {
+          this.selectedCondition = this.localConditions[0]
+        }
+      } else if (this.conditions && this.conditions.length > 0) {
         // 深拷贝条件，避免与父组件共享对象引用
         this.localConditions = this.conditions.map(c => ({
           ...c,
@@ -242,13 +316,13 @@ export default {
      * 加载查询条件列表
      */
     async loadConditions() {
-      if (!this.componentId) {
+      if (!this.normalizedComponentId) {
         return
       }
 
       this.loading = true
       try {
-        const response = await listConditions(this.componentId)
+        const response = await listConditions(this.normalizedComponentId)
 
         if (response.code === 200) {
           // 加载条件列表
@@ -323,7 +397,7 @@ export default {
     handleAddCondition() {
       const newCondition = {
         id: -this.conditionIdCounter++, // 使用负数ID表示新建
-        componentId: this.componentId,
+        componentId: this.normalizedComponentId !== null ? this.normalizedComponentId : this.componentId,
         conditionName: `查询条件${this.localConditions.length + 1}`,
         conditionType: 'text',
         displayOrder: this.localConditions.length + 1,
@@ -355,13 +429,13 @@ export default {
      * 删除条件
      */
     async handleDeleteCondition(conditionId) {
-      const index = this.localConditions.findIndex(c => c.id === conditionId)
+      const index = this.localConditions.findIndex(c => this.isSameId(c.id, conditionId))
       if (index === -1) {
         return
       }
       
-      // 如果是已保存的条件,调用后端删除
-      if (conditionId > 0) {
+      // direct 模式才调用后端删除
+      if (!this.isAggregateMode && Number(conditionId) > 0) {
         try {
           const response = await deleteCondition(conditionId)
           if (response.code !== 200) {
@@ -380,11 +454,11 @@ export default {
       
       // 移除相关映射
       this.localMappings = this.localMappings.filter(
-        m => m.conditionId !== conditionId
+        m => !this.isSameId(m.conditionId, conditionId)
       )
       
       // 如果删除的是当前选中的条件,选中下一个
-      if (this.selectedCondition && this.selectedCondition.id === conditionId) {
+      if (this.selectedCondition && this.isSameId(this.selectedCondition.id, conditionId)) {
         this.selectedCondition = this.localConditions.length > 0 
           ? this.localConditions[0] 
           : null
@@ -422,14 +496,14 @@ export default {
     handleUpdateMappings({ conditionId, mappings }) {
       // 移除该条件的旧映射
       this.localMappings = this.localMappings.filter(
-        m => m.conditionId !== conditionId
+        m => !this.isSameId(m.conditionId, conditionId)
       )
 
       // 添加新映射
       this.localMappings.push(...mappings)
 
       // 更新条件对象中的映射
-      const condition = this.localConditions.find(c => c.id === conditionId)
+      const condition = this.localConditions.find(c => this.isSameId(c.id, conditionId))
       if (condition) {
         condition.mappings = mappings
       }
@@ -445,7 +519,7 @@ export default {
         displayType: config.displayType
       })
 
-      const condition = this.localConditions.find(c => c.id === conditionId)
+      const condition = this.localConditions.find(c => this.isSameId(c.id, conditionId))
       if (condition) {
         condition.config = { ...config }
         condition.defaultValue = defaultValue
@@ -462,7 +536,7 @@ export default {
      * 更新必填状态
      */
     handleUpdateRequired({ conditionId, isRequired }) {
-      const condition = this.localConditions.find(c => c.id === conditionId)
+      const condition = this.localConditions.find(c => this.isSameId(c.id, conditionId))
       if (condition) {
         condition.isRequired = isRequired
       }
@@ -472,7 +546,7 @@ export default {
      * 更新可见性
      */
     handleUpdateVisible({ conditionId, isVisible }) {
-      const condition = this.localConditions.find(c => c.id === conditionId)
+      const condition = this.localConditions.find(c => this.isSameId(c.id, conditionId))
       if (condition) {
         condition.isVisible = isVisible
       }
@@ -482,6 +556,10 @@ export default {
      * 防抖验证配置
      */
     debouncedValidate() {
+      if (!this.dialogVisible) {
+        return
+      }
+
       // 清除之前的计时器
       if (this.validateTimer) {
         clearTimeout(this.validateTimer)
@@ -497,24 +575,43 @@ export default {
      * 验证配置
      */
     async validateConfig() {
+      if (!this.dialogVisible) {
+        return { valid: true, errors: {} }
+      }
+
       this.validationErrors = {}
 
       // 前端验证
       const errors = {}
 
+      if (!Array.isArray(this.localConditions) || this.localConditions.length === 0) {
+        this.validationErrors = {
+          _global: {
+            conditions: '条件列表不能为空'
+          }
+        }
+        return {
+          valid: false,
+          errors: this.validationErrors
+        }
+      }
+
       // 验证条件名称唯一性和非空
       const nameMap = new Map()
       this.localConditions.forEach(condition => {
+        const conditionName = condition && condition.conditionName ? String(condition.conditionName).trim() : ''
+
         // 验证名称非空
-        if (!condition.conditionName || !condition.conditionName.trim()) {
+        if (!conditionName) {
           if (!errors[condition.id]) {
             errors[condition.id] = {}
           }
           errors[condition.id].conditionName = '条件名称不能为空'
+          return
         }
 
         // 验证名称唯一性
-        const name = condition.conditionName.trim()
+        const name = conditionName
         if (nameMap.has(name)) {
           if (!errors[condition.id]) {
             errors[condition.id] = {}
@@ -526,7 +623,7 @@ export default {
 
         // 验证字段映射
         const conditionMappings = this.localMappings.filter(
-          m => m.conditionId === condition.id
+          m => this.isSameId(m.conditionId, condition.id)
         )
         if (conditionMappings.length === 0) {
           if (!errors[condition.id]) {
@@ -608,8 +705,8 @@ export default {
         }
       }
 
-      // 调用后端验证（仅在有 dashboardId 和 componentId 时）
-      if (!this.dashboardId || !this.componentId) {
+      // 聚合保存模式或缺少上下文时，不调用后端验证
+      if (this.isAggregateMode || !this.dashboardId || !this.normalizedComponentId) {
         // 新组件或新仪表板还未保存，跳过后端验证
         return { valid: true, errors: {} }
       }
@@ -638,13 +735,63 @@ export default {
         }
       } catch (error) {
         console.error('验证配置失败:', error)
+        const backendErrors = this.extractBackendValidationErrors(error)
+        if (backendErrors) {
+          this.validationErrors = backendErrors
+          this.focusFirstErrorCondition()
+          return {
+            valid: false,
+            errors: backendErrors
+          }
+        }
         // 如果是仪表板ID或组件ID为空的错误，返回有效（新组件/仪表板还没保存）
         if (error.message && (error.message.includes('仪表板ID不能为空') || error.message.includes('组件ID不能为空'))) {
           return { valid: true, errors: {} }
         }
+        return {
+          valid: false,
+          errors: { _global: { config: error.message || '配置验证失败' } }
+        }
       }
 
       return { valid: true, errors: {} }
+    },
+
+    /**
+     * 从后端错误对象中提取字段级验证错误
+     */
+    extractBackendValidationErrors(error) {
+      const errorList = error && error.response && error.response.data && error.response.data.errors
+      if (!Array.isArray(errorList) || errorList.length === 0) {
+        return null
+      }
+
+      const backendErrors = {}
+      errorList.forEach(item => {
+        const conditionId = item && item.conditionId !== undefined && item.conditionId !== null
+          ? String(item.conditionId)
+          : '_global'
+        if (!backendErrors[conditionId]) {
+          backendErrors[conditionId] = {}
+        }
+        const field = (item && item.field) ? item.field : 'config'
+        backendErrors[conditionId][field] = (item && item.message) ? item.message : '配置验证失败'
+      })
+      return backendErrors
+    },
+
+    /**
+     * 切换到首个有错误的条件，便于用户直接修复
+     */
+    focusFirstErrorCondition() {
+      const firstErrorConditionId = Object.keys(this.validationErrors || {})[0]
+      if (!firstErrorConditionId || firstErrorConditionId === '_global') {
+        return
+      }
+      const errorCondition = this.localConditions.find(c => this.isSameId(c.id, firstErrorConditionId))
+      if (errorCondition) {
+        this.selectedCondition = errorCondition
+      }
     },
 
     /**
@@ -718,7 +865,7 @@ export default {
      */
     buildConfigDTO() {
       return {
-        componentId: this.componentId,
+        componentId: this.normalizedComponentId,
         dashboardId: this.dashboardId,
         conditions: this.localConditions.map(condition => ({
           id: condition.id > 0 ? condition.id : null,
@@ -730,9 +877,10 @@ export default {
           defaultValue: condition.defaultValue,
           config: condition.config,
           mappings: this.localMappings
-            .filter(m => m.conditionId === condition.id)
+            .filter(m => this.isSameId(m.conditionId, condition.id))
             .map(m => ({
               id: m.id > 0 ? m.id : null,
+              componentId: this.resolveComponentId(m.componentId),
               tableName: m.tableName,
               fieldName: m.fieldName,
               mappingType: m.mappingType
@@ -761,7 +909,7 @@ export default {
           const firstErrorConditionId = Object.keys(this.validationErrors)[0]
           if (firstErrorConditionId) {
             const errorCondition = this.localConditions.find(
-              c => c.id === parseInt(firstErrorConditionId)
+              c => this.isSameId(c.id, firstErrorConditionId)
             )
             if (errorCondition) {
               this.selectedCondition = errorCondition
@@ -772,8 +920,8 @@ export default {
         return
       }
 
-      // 检查是否为新仪表板或新组件
-      if (!this.dashboardId || !this.componentId) {
+      // 聚合模式仅更新本地，最终由仪表板聚合保存落库
+      if (this.isAggregateMode || !this.dashboardId || !this.normalizedComponentId) {
         console.log('[QueryConditionConfig] 新组件，只更新本地状态', {
           conditionsCount: this.localConditions.length,
           mappingsCount: this.localMappings.length
@@ -809,6 +957,13 @@ export default {
         }
       } catch (error) {
         console.error('保存配置失败:', error)
+        const backendErrors = this.extractBackendValidationErrors(error)
+        if (backendErrors) {
+          this.validationErrors = backendErrors
+          this.focusFirstErrorCondition()
+          this.$message.error('配置验证失败,请检查错误提示')
+          return
+        }
         // 如果是仪表板ID或组件ID为空的错误，更新本地状态
         if (error.message && (error.message.includes('仪表板ID不能为空') || error.message.includes('组件ID不能为空'))) {
           this.$message.warning('配置已保存到本地，保存仪表板后将同步到服务器')
@@ -849,6 +1004,11 @@ export default {
      * 关闭对话框
      */
     handleClose() { 
+      if (this.validateTimer) {
+        clearTimeout(this.validateTimer)
+        this.validateTimer = null
+      }
+
       // 重置状态
       this.localConditions = []
       this.localMappings = []

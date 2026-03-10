@@ -2,6 +2,8 @@ package com.zjrcu.iras.bi.platform.service;
 
 import com.zjrcu.iras.bi.platform.domain.DataSource;
 import com.zjrcu.iras.bi.platform.domain.dto.ConnectionTestResult;
+import com.zjrcu.iras.bi.platform.domain.dto.TablePreviewData;
+import com.zjrcu.iras.bi.platform.domain.dto.TableSchemaInfo;
 
 import java.util.List;
 import java.util.Map;
@@ -92,7 +94,7 @@ public interface IDataSourceService {
      * @param tableName    表名
      * @return 表结构信息
      */
-    com.zjrcu.iras.bi.platform.domain.dto.TableSchemaInfo getTableSchema(Long dataSourceId, String tableName);
+    TableSchemaInfo getTableSchema(Long dataSourceId, String tableName);
 
     /**
      * 获取表数据预览
@@ -102,5 +104,5 @@ public interface IDataSourceService {
      * @param limit        限制行数
      * @return 表数据预览
      */
-    com.zjrcu.iras.bi.platform.domain.dto.TablePreviewData getTablePreview(Long dataSourceId, String tableName, int limit);
+    TablePreviewData getTablePreview(Long dataSourceId, String tableName, int limit);
 }

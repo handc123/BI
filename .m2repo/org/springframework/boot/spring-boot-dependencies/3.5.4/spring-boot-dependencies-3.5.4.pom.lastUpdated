@@ -1,0 +1,8 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Tue Mar 10 18:33:29 CST 2026
+0d64f13e6c2235d1ff2c2af7cf4252211ca3984b@default-admin-http\://118.31.14.31\:8081/repository/maven-public/.lastUpdated=1773138809744
+http\://maven.aliyun.com/nexus/content/groups/public/.error=Could not transfer artifact org.springframework.boot\:spring-boot-dependencies\:pom\:3.5.4 from/to nexus-aliyun (http\://maven.aliyun.com/nexus/content/groups/public)\: Transfer failed for http\://maven.aliyun.com/nexus/content/groups/public/org/springframework/boot/spring-boot-dependencies/3.5.4/spring-boot-dependencies-3.5.4.pom
+@default-nexus-aliyun-http\://maven.aliyun.com/nexus/content/groups/public/.lastUpdated=1773138809991
+@default-public-https\://maven.aliyun.com/repository/public/.lastUpdated=1773138809928
+https\://maven.aliyun.com/repository/public/.error=Could not transfer artifact org.springframework.boot\:spring-boot-dependencies\:pom\:3.5.4 from/to public (https\://maven.aliyun.com/repository/public)\: Transfer failed for https\://maven.aliyun.com/repository/public/org/springframework/boot/spring-boot-dependencies/3.5.4/spring-boot-dependencies-3.5.4.pom
+http\://118.31.14.31\:8081/repository/maven-public/.error=Could not transfer artifact org.springframework.boot\:spring-boot-dependencies\:pom\:3.5.4 from/to admin (http\://118.31.14.31\:8081/repository/maven-public/)\: Transfer failed for http\://118.31.14.31\:8081/repository/maven-public/org/springframework/boot/spring-boot-dependencies/3.5.4/spring-boot-dependencies-3.5.4.pom

@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zjrcu.iras.bi.platform.mapper.VisualizationMapper">
 
-    <resultMap type="Visualization" id="VisualizationResult">
+    <resultMap type="com.zjrcu.iras.bi.platform.domain.Visualization" id="VisualizationResult">
         <id     property="id"         column="id"          />
         <result property="name"       column="name"        />
         <result property="datasetId"  column="dataset_id"  />
@@ -20,7 +20,7 @@
         from bi_visualization
     </sql>
 
-    <select id="selectVisualizationList" parameterType="Visualization" resultMap="VisualizationResult">
+    <select id="selectVisualizationList"  resultMap="VisualizationResult">
         <include refid="selectVisualizationVo"/>
         <where>
             <if test="name != null and name != ''">
@@ -47,7 +47,7 @@
         order by create_time desc
     </select>
 
-    <insert id="insertVisualization" parameterType="Visualization" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insertVisualization"  useGeneratedKeys="true" keyProperty="id">
         insert into bi_visualization
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="name != null and name != ''">name,</if>
@@ -69,7 +69,7 @@
         </trim>
     </insert>
 
-    <update id="updateVisualization" parameterType="Visualization">
+    <update id="updateVisualization" >
         update bi_visualization
         <trim prefix="SET" suffixOverrides=",">
             <if test="name != null and name != ''">name = #{name},</if>

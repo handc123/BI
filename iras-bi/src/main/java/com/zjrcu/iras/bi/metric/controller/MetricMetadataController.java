@@ -125,12 +125,7 @@ public class MetricMetadataController extends BaseController {
                 metricMetadata.setDeptId(SecurityUtils.getDeptId());
             }
 
-            // 校验指标编码唯一性
-            if (!metricMetadataService.checkMetricCodeUnique(metricMetadata)) {
-                return error("新增指标失败，指标编码已存在");
-            }
-
-            // 插入指标元数据
+            // 幂等插入：已存在时由服务层复用已有指标并回填ID
             int result = metricMetadataService.insertMetricMetadata(metricMetadata);
             if (result > 0) {
                 return success(metricMetadata);

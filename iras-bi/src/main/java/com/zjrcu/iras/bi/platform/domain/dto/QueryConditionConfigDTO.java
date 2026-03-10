@@ -297,8 +297,10 @@ public class QueryConditionConfigDTO implements Serializable {
         /** 映射ID (新增时为null) */
         private Long id;
 
-        /** 表名 */
-        @NotEmpty(message = "表名不能为空")
+        /** 关联图表组件ID */
+        private Long componentId;
+
+        /** 表名（组件映射可为空） */
         private String tableName;
 
         /** 字段名 */
@@ -314,6 +316,14 @@ public class QueryConditionConfigDTO implements Serializable {
 
         public void setId(Long id) {
             this.id = id;
+        }
+
+        public Long getComponentId() {
+            return componentId;
+        }
+
+        public void setComponentId(Long componentId) {
+            this.componentId = componentId;
         }
 
         public String getTableName() {

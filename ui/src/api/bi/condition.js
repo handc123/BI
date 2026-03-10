@@ -1,5 +1,22 @@
 import request from '@/utils/request'
 
+function normalizeLongId(id) {
+  if (id === undefined || id === null || id === '') {
+    return null
+  }
+  if (typeof id === 'number' && Number.isFinite(id)) {
+    return id
+  }
+  const text = String(id).trim()
+  if (!text) {
+    return null
+  }
+  if (/^\d+$/.test(text)) {
+    return Number(text)
+  }
+  return null
+}
+
 /**
  * 查询条件配置API服务
  * 提供查询条件管理的前端API调用方法
@@ -11,10 +28,11 @@ import request from '@/utils/request'
  * @returns {Promise} 查询条件列表
  */
 export function listConditions(componentId) {
+  const normalizedId = normalizeLongId(componentId)
   return request({
     url: '/bi/condition/list',
     method: 'get',
-    params: { componentId }
+    params: { componentId: normalizedId }
   })
 }
 
@@ -180,9 +198,13 @@ export function getCascadeOptions(conditionId, parentValues) {
  * @returns {Promise} 查询结果
  */
 export function executeQuery(queryRequest) {
+  const data = { ...(queryRequest || {}) }
+  if (Object.prototype.hasOwnProperty.call(data, 'componentId')) {
+    data.componentId = normalizeLongId(data.componentId)
+  }
   return request({
     url: '/bi/condition/execute',
     method: 'post',
-    data: queryRequest
+    data
   })
 }

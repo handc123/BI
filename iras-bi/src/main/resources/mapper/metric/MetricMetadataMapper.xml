@@ -88,6 +88,9 @@
             <if test="deptId != null">
                 AND dept_id = #{deptId}
             </if>
+            <if test="datasetId != null">
+                AND dataset_id = #{datasetId}
+            </if>
         </where>
         LIMIT 1
     </select>

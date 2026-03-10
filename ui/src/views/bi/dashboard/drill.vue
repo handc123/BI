@@ -6,30 +6,98 @@
     </div>
 
     <el-card shadow="never" class="section-card">
-      <div slot="header">区块A：已带入条件（只读）</div>
-      <div class="group-title">图表查询条件</div>
-      <div class="tag-list">
-        <el-tag v-for="item in inheritedChartConditions" :key="item.key" size="small" type="info">
-          {{ item.label }}: {{ item.value }}
-        </el-tag>
-        <span v-if="inheritedChartConditions.length === 0" class="empty-hint">暂无图表带入条件</span>
-      </div>
+      <div slot="header">区块A：已带入条件（字段只读）</div>
+      <div v-if="inheritedEditableRules.length === 0" class="empty-hint">暂无带入条件</div>
+      <div v-for="rule in inheritedEditableRules" :key="rule.id" class="inherited-row">
+        <div class="rule-label">
+          <span class="required">*</span>
+          <span>筛选规则：{{ getFieldLabel(rule.field) }}</span>
+        </div>
 
-      <div class="group-title">指标口径条件</div>
-      <div class="tag-list">
-        <div v-for="(item, idx) in inheritedFormulaConditions" :key="'formula-'+idx" class="formula-row">
-          <el-tag size="small" type="warning">指标口径</el-tag>
-          <el-tag size="small" type="info">{{ item.display }}</el-tag>
-          <el-button type="text" size="mini" @click="convertToEditable(item)">转为可编辑条件</el-button>
+        <el-select
+          v-model="rule.operator"
+          size="small"
+          class="rule-op"
+          @change="handleOperatorChange(rule)"
+        >
+          <el-option v-for="op in operatorOptions" :key="op.value" :label="op.label" :value="op.value" />
+        </el-select>
+
+        <div class="rule-value">
+          <template v-if="isNullOperator(rule.operator)">
+            <el-input size="small" value="无需填写" disabled />
+          </template>
+          <template v-else-if="isBetweenOperator(rule.operator) && isDateField(rule.field)">
+            <el-date-picker
+              v-model="rule.value"
+              type="daterange"
+              value-format="yyyy-MM-dd"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              size="small"
+              class="date-range-value"
+            />
+          </template>
+          <template v-else-if="isDateField(rule.field)">
+            <el-date-picker
+              v-model="rule.value"
+              type="date"
+              value-format="yyyy-MM-dd"
+              placeholder="选择日期"
+              size="small"
+              class="date-single-value"
+            />
+          </template>
+          <template v-else-if="isBetweenOperator(rule.operator)">
+            <el-select
+              v-model="rule.value"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              size="small"
+              class="multi-value-select"
+              placeholder="请输入两个值并回车"
+            />
+          </template>
+          <template v-else-if="isMultiOperator(rule.operator)">
+            <el-select
+              v-model="rule.value"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              size="small"
+              class="multi-value-select"
+              placeholder="请输入并回车"
+            />
+          </template>
+          <template v-else>
+            <el-input v-model="rule.value" size="small" placeholder="条件值" />
+          </template>
         </div>
       </div>
-      <div v-if="formulaParseError" class="parse-error">
-        {{ formulaParseError }}，可手动补充筛选规则
+
+      <div v-if="formulaParseError" class="parse-error">{{ formulaParseError }}</div>
+
+      <div class="sort-header">排序规则</div>
+      <div v-if="sortRules.length === 0" class="empty-hint">未配置排序</div>
+      <div v-for="sort in sortRules" :key="sort.id" class="sort-row">
+        <el-select v-model="sort.field" size="small" class="sort-field" placeholder="字段">
+          <el-option v-for="f in fieldOptions" :key="f.value" :label="f.label" :value="f.value" />
+        </el-select>
+        <el-select v-model="sort.order" size="small" class="sort-order" placeholder="排序方向">
+          <el-option label="升序" value="ASC" />
+          <el-option label="降序" value="DESC" />
+        </el-select>
+        <el-button type="text" size="mini" @click="removeSortRule(sort.id)">删除</el-button>
       </div>
+      <el-button size="mini" @click="addSortRule">+ 添加排序</el-button>
     </el-card>
 
     <el-card shadow="never" class="section-card">
-      <div slot="header">区块B：指标筛选规则（多条件组）</div>
+      <div slot="header">区块B：条件组（组间 AND/OR）</div>
       <div v-for="(group, gIndex) in ruleGroups" :key="group.id" class="rule-group">
         <div class="rule-group-head">
           <div class="group-left">
@@ -55,11 +123,70 @@
             <el-option v-for="f in fieldOptions" :key="f.value" :label="f.label" :value="f.value" />
           </el-select>
 
-          <el-select v-model="rule.operator" size="small" placeholder="操作符" class="rule-op">
+          <el-select
+            v-model="rule.operator"
+            size="small"
+            placeholder="操作符"
+            class="rule-op"
+            @change="handleOperatorChange(rule)"
+          >
             <el-option v-for="op in operatorOptions" :key="op.value" :label="op.label" :value="op.value" />
           </el-select>
 
-          <el-input v-model="rule.value" size="small" placeholder="条件值" class="rule-value" />
+          <div class="rule-value">
+            <template v-if="isNullOperator(rule.operator)">
+              <el-input size="small" value="无需填写" disabled />
+            </template>
+            <template v-else-if="isBetweenOperator(rule.operator) && isDateField(rule.field)">
+              <el-date-picker
+                v-model="rule.value"
+                type="daterange"
+                value-format="yyyy-MM-dd"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                size="small"
+                class="date-range-value"
+              />
+            </template>
+            <template v-else-if="isDateField(rule.field)">
+              <el-date-picker
+                v-model="rule.value"
+                type="date"
+                value-format="yyyy-MM-dd"
+                placeholder="选择日期"
+                size="small"
+                class="date-single-value"
+              />
+            </template>
+            <template v-else-if="isBetweenOperator(rule.operator)">
+              <el-select
+                v-model="rule.value"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                class="multi-value-select"
+                placeholder="请输入两个值并回车"
+              />
+            </template>
+            <template v-else-if="isMultiOperator(rule.operator)">
+              <el-select
+                v-model="rule.value"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                size="small"
+                class="multi-value-select"
+                placeholder="请输入并回车"
+              />
+            </template>
+            <template v-else>
+              <el-input v-model="rule.value" size="small" placeholder="条件值" />
+            </template>
+          </div>
 
           <el-button v-if="group.rules.length > 1" type="text" size="mini" @click="removeRule(group, rIndex)">删除</el-button>
         </div>
@@ -110,7 +237,9 @@ export default {
       loading: false,
       drillConfig: null,
       inheritedFormulaConditions: [],
+      inheritedEditableRules: [],
       formulaParseError: '',
+      sortRules: [],
       ruleGroups: [
         {
           id: Date.now(),
@@ -126,39 +255,6 @@ export default {
     }
   },
   computed: {
-    inheritedChartConditions() {
-      const query = this.$route.query || {}
-      const items = []
-      if (query.metricId) {
-        items.push({ key: 'metricId', label: '指标', value: query.metricId })
-      } else if (query.metricField) {
-        items.push({ key: 'metricField', label: '字段', value: query.metricName || query.metricField })
-      }
-      if (query.componentId) {
-        items.push({ key: 'componentId', label: '图表', value: query.componentId })
-      }
-      if (query.orgId) {
-        items.push({ key: 'orgId', label: '机构', value: query.orgId })
-      }
-      if (query.date) {
-        items.push({ key: 'date', label: '日期', value: query.date })
-      }
-      const snapshot = this.parseQuerySnapshot(query.querySnapshot)
-      Object.keys(snapshot).forEach(key => {
-        if (['sjbsjgid', 'load_date'].includes(key)) {
-          return
-        }
-        const value = snapshot[key]
-        if (value !== undefined && value !== null && value !== '') {
-          items.push({
-            key: `snapshot_${key}`,
-            label: key,
-            value: Array.isArray(value) ? value.join(',') : String(value)
-          })
-        }
-      })
-      return items
-    },
     fieldOptions() {
       if (this.drillConfig && Array.isArray(this.drillConfig.fields) && this.drillConfig.fields.length > 0) {
         return this.drillConfig.fields.map(f => ({
@@ -185,7 +281,9 @@ export default {
         { label: '小于等于', value: '<=' },
         { label: '介于', value: 'BETWEEN' },
         { label: '为空', value: 'IS NULL' },
-        { label: '非空', value: 'IS NOT NULL' }
+        { label: '非空', value: 'IS NOT NULL' },
+        { label: '属于', value: 'IN' },
+        { label: '不属于', value: 'NOT IN' }
       ]
     }
   },
@@ -210,12 +308,43 @@ export default {
       }
     },
 
+    parseSnapshotFieldMap(raw) {
+      if (!raw) return {}
+      try {
+        const parsed = JSON.parse(raw)
+        return parsed && typeof parsed === 'object' ? parsed : {}
+      } catch (e1) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(raw))
+          return parsed && typeof parsed === 'object' ? parsed : {}
+        } catch (e2) {
+          return {}
+        }
+      }
+    },
+
+    normalizeLongId(id) {
+      if (id === undefined || id === null || id === '') {
+        return null
+      }
+      if (typeof id === 'number' && Number.isFinite(id)) {
+        return id
+      }
+      const text = String(id).trim()
+      if (!text) return null
+      if (/^\d+$/.test(text)) {
+        return Number(text)
+      }
+      const match = text.match(/(\d+)$/)
+      return match && match[1] ? Number(match[1]) : null
+    },
+
     async initPage() {
       const metricId = this.$route.query && this.$route.query.metricId
       const datasetId = this.$route.query && this.$route.query.datasetId
       const metricField = this.$route.query && this.$route.query.metricField
       if (!metricId && !(datasetId && metricField)) {
-        this.$message.error('缺少穿透参数，请返回图表页面重新点击')
+        this.$message.error('缺少穿透参数，请返回图表页面重试')
         return
       }
       if (metricId) {
@@ -226,6 +355,7 @@ export default {
         this.inheritedFormulaConditions = []
         this.formulaParseError = ''
       }
+      this.initInheritedEditableRules()
       this.handleQuery()
     },
 
@@ -240,36 +370,155 @@ export default {
       }
     },
 
-    async loadFormulaConditions() {
+    loadFormulaConditions() {
       if (!this.drillConfig) {
         return
       }
-
       try {
         const expression = this.drillConfig.technicalFormula || this.drillConfig.calculationLogic || ''
         const parsed = parseMetricConditions(expression)
         if (parsed.ok) {
-          this.inheritedFormulaConditions = parsed.conditions
+          this.inheritedFormulaConditions = parsed.conditions || []
           this.formulaParseError = ''
         } else {
           this.inheritedFormulaConditions = []
           this.formulaParseError = parsed.message || '口径条件解析失败'
         }
       } catch (e) {
+        this.inheritedFormulaConditions = []
         this.formulaParseError = '口径条件解析失败'
       }
     },
 
-    convertToEditable(item) {
-      if (!item) return
-      const group = this.ruleGroups[0]
-      if (!group) return
-      group.rules.push({
-        id: Date.now() + Math.random(),
-        field: item.field || '',
-        operator: item.operator || '=',
-        value: Array.isArray(item.value) ? item.value.join(',') : (item.value || '')
+    initInheritedEditableRules() {
+      const querySnapshot = this.parseQuerySnapshot(this.$route.query.querySnapshot)
+      const snapshotFieldMap = this.parseSnapshotFieldMap(this.$route.query.querySnapshotFieldMap)
+      const baseRules = []
+      Object.keys(querySnapshot || {}).forEach(key => {
+        const value = querySnapshot[key]
+        if (value === undefined || value === null || value === '') return
+        const mappedField = snapshotFieldMap[key] || key
+        baseRules.push({
+          id: `chart_${mappedField}_${key}`,
+          field: mappedField,
+          operator: '=',
+          value: Array.isArray(value) ? value.slice() : value
+        })
       })
+
+      this.inheritedFormulaConditions.forEach((item, idx) => {
+        if (!item || !item.field) return
+        const operator = this.normalizeOperatorForUi(item.operator || '=')
+        baseRules.push({
+          id: `formula_${idx}_${item.field}`,
+          field: item.field,
+          operator,
+          value: this.normalizeValueForUi(operator, item.value)
+        })
+      })
+
+      this.inheritedEditableRules = baseRules
+        .filter(item => !!item.field)
+        .filter(item => !/^\d+$/.test(String(item.field)))
+        .map(item => ({
+        id: item.id,
+        field: item.field,
+        operator: item.operator,
+        value: this.normalizeValueForUi(item.operator, item.value)
+      }))
+    },
+
+    addSortRule() {
+      this.sortRules.push({
+        id: Date.now() + Math.random(),
+        field: '',
+        order: 'ASC'
+      })
+    },
+
+    removeSortRule(id) {
+      this.sortRules = this.sortRules.filter(item => item.id !== id)
+    },
+
+    getFieldLabel(field) {
+      const hit = this.fieldOptions.find(item => item.value === field)
+      return hit ? hit.label : field
+    },
+
+    normalizeOperatorForUi(operator) {
+      if (!operator) return '='
+      const op = String(operator).trim().toUpperCase()
+      if (op === 'EQ' || op === '=') return '='
+      if (op === 'NE' || op === '!=' || op === '<>') return '!='
+      if (op === 'GT' || op === '>') return '>'
+      if (op === 'GTE' || op === '>=') return '>='
+      if (op === 'LT' || op === '<') return '<'
+      if (op === 'LTE' || op === '<=') return '<='
+      if (op === 'IS_NULL' || op === 'IS NULL') return 'IS NULL'
+      if (op === 'IS_NOT_NULL' || op === 'IS NOT NULL') return 'IS NOT NULL'
+      if (op === 'NOT_IN' || op === 'NOT IN') return 'NOT IN'
+      return op
+    },
+
+    normalizeValueForUi(operator, value) {
+      if (this.isNullOperator(operator)) {
+        return ''
+      }
+      if (this.isBetweenOperator(operator)) {
+        if (Array.isArray(value)) {
+          return value.slice(0, 2)
+        }
+        if (typeof value === 'string' && value.includes(',')) {
+          const parts = value.split(',').map(v => (v || '').trim()).filter(Boolean)
+          return parts.slice(0, 2)
+        }
+        return []
+      }
+      if (this.isMultiOperator(operator)) {
+        if (Array.isArray(value)) {
+          return value
+        }
+        if (typeof value === 'string') {
+          return value.split(',').map(v => (v || '').trim()).filter(Boolean)
+        }
+        return value ? [String(value)] : []
+      }
+      return value == null ? '' : value
+    },
+
+    handleOperatorChange(rule) {
+      if (!rule) return
+      rule.value = this.normalizeValueForUi(rule.operator, null)
+    },
+
+    isNullOperator(operator) {
+      return operator === 'IS NULL' || operator === 'IS NOT NULL'
+    },
+
+    isBetweenOperator(operator) {
+      return operator === 'BETWEEN'
+    },
+
+    isMultiOperator(operator) {
+      return operator === 'IN' || operator === 'NOT IN'
+    },
+
+    isDateField(field) {
+      if (!field) return false
+      const meta = this.drillConfig && Array.isArray(this.drillConfig.fields)
+        ? this.drillConfig.fields.find(item => {
+          const name = item.dbFieldName || item.fieldName || item.field || ''
+          return name === field
+        })
+        : null
+      const fieldName = String(field).toLowerCase()
+      const comment = meta ? String(meta.comment || meta.fieldComment || '').toLowerCase() : ''
+      const dataType = meta ? String(meta.dataType || meta.fieldType || '').toLowerCase() : ''
+      return fieldName.includes('date') ||
+        fieldName.includes('time') ||
+        comment.includes('日期') ||
+        dataType.includes('date') ||
+        dataType.includes('time')
     },
 
     addGroup() {
@@ -297,48 +546,107 @@ export default {
       group.rules.splice(index, 1)
     },
 
+    toPayloadCondition(rule) {
+      if (!rule || !rule.field || !rule.operator) {
+        return null
+      }
+      const condition = {
+        field: rule.field,
+        operator: rule.operator
+      }
+      if (this.isNullOperator(rule.operator)) {
+        condition.value = null
+        return condition
+      }
+      if (this.isBetweenOperator(rule.operator)) {
+        if (!Array.isArray(rule.value) || rule.value.length !== 2 || !rule.value[0] || !rule.value[1]) {
+          condition.__invalid = true
+          return condition
+        }
+        condition.values = rule.value
+        return condition
+      }
+      if (this.isMultiOperator(rule.operator)) {
+        if (!Array.isArray(rule.value) || rule.value.length === 0) {
+          condition.__invalid = true
+          return condition
+        }
+        condition.values = rule.value
+        return condition
+      }
+      if (rule.value === '' || rule.value === null || rule.value === undefined) {
+        condition.__invalid = true
+        return condition
+      }
+      condition.value = rule.value
+      return condition
+    },
+
+    buildCleanCondition(condition) {
+      const target = {
+        field: condition.field,
+        operator: condition.operator
+      }
+      if (Array.isArray(condition.values)) {
+        target.values = condition.values
+      } else {
+        target.value = Object.prototype.hasOwnProperty.call(condition, 'value') ? condition.value : null
+      }
+      return target
+    },
+
     handleQuery(page) {
       if (page && Number(page) > 0) {
         this.pageNum = Number(page)
       }
       this.loading = true
-      const querySnapshot = this.parseQuerySnapshot(this.$route.query.querySnapshot)
-      const inheritedConditions = []
-      Object.keys(querySnapshot || {}).forEach(key => {
-        const value = querySnapshot[key]
-        if (value === undefined || value === null || value === '') return
-        inheritedConditions.push({
-          field: key,
-          operator: '=',
-          value
-        })
-      })
 
-      this.inheritedFormulaConditions.forEach(c => {
-        const op = String(c.operator || '').toUpperCase()
-        const condition = {
-          field: c.field,
-          operator: op,
-          value: Array.isArray(c.value) ? null : c.value
-        }
-        if (Array.isArray(c.value)) {
-          condition.values = c.value
-        }
-        inheritedConditions.push(condition)
-      })
+      const inheritedConditions = this.inheritedEditableRules
+        .filter(item => item.field && item.operator)
+        .map(item => this.toPayloadCondition(item))
+        .filter(Boolean)
 
-      const ruleGroups = this.ruleGroups.map(g => ({
-        relationWithPrev: g.relationWithPrev,
-        rules: g.rules
-          .filter(r => r.field && r.operator)
-          .map(r => ({
-            field: r.field,
-            operator: r.operator,
-            value: r.value
-          }))
+      const ruleGroups = this.ruleGroups.map(group => ({
+        relationWithPrev: group.relationWithPrev,
+        rules: group.rules
+          .filter(rule => rule.field && rule.operator)
+          .map(rule => this.toPayloadCondition(rule))
+          .filter(Boolean)
+      })).filter(group => group.rules.length > 0)
+
+      if (inheritedConditions.some(item => item.__invalid)) {
+        this.loading = false
+        this.$message.warning('区块A存在未完成条件，请检查后重试')
+        return
+      }
+      if (ruleGroups.some(group => group.rules.some(item => item.__invalid))) {
+        this.loading = false
+        this.$message.warning('区块B存在未完成条件，请检查后重试')
+        return
+      }
+
+      const invalidSort = this.sortRules.some(item => (item.field && !item.order) || (!item.field && item.order))
+      if (invalidSort) {
+        this.loading = false
+        this.$message.warning('排序字段和排序方向需同时选择')
+        return
+      }
+
+      const sortRules = this.sortRules
+        .filter(item => item.field && item.order)
+        .map(item => ({
+          field: item.field,
+          order: String(item.order).toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
+        }))
+
+      const cleanedInherited = inheritedConditions.map(item => this.buildCleanCondition(item))
+      const cleanedRuleGroups = ruleGroups.map(group => ({
+        relationWithPrev: group.relationWithPrev,
+        rules: group.rules.map(item => this.buildCleanCondition(item))
       }))
+
       const dashboardId = Number(this.$route.params.dashboardId)
-      const componentId = this.$route.query.componentId ? Number(this.$route.query.componentId) : null
+      const componentId = this.normalizeLongId(this.$route.query.componentId)
       const metricId = this.$route.query.metricId ? Number(this.$route.query.metricId) : null
 
       const request = metricId ? queryDrillDetail({
@@ -346,8 +654,9 @@ export default {
         dashboardId,
         componentId,
         datasetId: this.drillConfig ? this.drillConfig.datasetId : null,
-        inheritedConditions,
-        ruleGroups,
+        inheritedConditions: cleanedInherited,
+        ruleGroups: cleanedRuleGroups,
+        sortRules,
         pageNum: this.pageNum,
         pageSize: this.pageSize
       }) : queryDrillByField({
@@ -356,8 +665,9 @@ export default {
         metricName: this.$route.query.metricName || this.$route.query.metricField,
         dashboardId,
         componentId,
-        inheritedConditions,
-        ruleGroups,
+        inheritedConditions: cleanedInherited,
+        ruleGroups: cleanedRuleGroups,
+        sortRules,
         pageNum: this.pageNum,
         pageSize: this.pageSize
       })
@@ -380,6 +690,8 @@ export default {
     },
 
     handleReset() {
+      this.initInheritedEditableRules()
+      this.sortRules = []
       this.ruleGroups = [
         {
           id: Date.now(),
@@ -417,21 +729,28 @@ export default {
   margin-bottom: 12px;
 }
 
-.group-title {
-  margin: 8px 0;
-  font-weight: 600;
-}
-
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.formula-row {
+.inherited-row,
+.sort-row,
+.rule-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rule-label {
+  width: 260px;
+  color: #606266;
+}
+
+.required {
+  color: #f56c6c;
+  margin-right: 4px;
+}
+
+.sort-header {
+  margin: 12px 0 8px;
+  font-weight: 600;
 }
 
 .parse-error {
@@ -467,22 +786,20 @@ export default {
   width: 120px;
 }
 
-.rule-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.rule-field {
+.rule-field,
+.sort-field {
   width: 220px;
 }
 
-.rule-op {
+.rule-op,
+.sort-order {
   width: 130px;
 }
 
-.rule-value {
+.rule-value,
+.date-range-value,
+.date-single-value,
+.multi-value-select {
   width: 240px;
 }
 

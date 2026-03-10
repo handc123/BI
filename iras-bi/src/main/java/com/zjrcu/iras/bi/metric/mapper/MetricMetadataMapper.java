@@ -3,6 +3,7 @@ package com.zjrcu.iras.bi.metric.mapper;
 import com.zjrcu.iras.bi.metric.domain.MetricMetadata;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
@@ -77,6 +78,20 @@ public interface MetricMetadataMapper {
      * @param metricMetadata 指标元数据
      * @return 结果
      */
+    @Select({
+            "<script>",
+            "SELECT id, metric_code, metric_name, dataset_id, visualization_id,",
+            "       business_definition, technical_formula, calculation_logic,",
+            "       owner_dept, dept_id, data_freshness, update_frequency,",
+            "       status, del_flag, create_by, create_time, update_by, update_time, remark",
+            "FROM bi_metric_metadata",
+            "WHERE del_flag = '0'",
+            "  AND metric_code = #{metricCode}",
+            "  <if test='deptId != null'>AND dept_id = #{deptId}</if>",
+            "  <if test='datasetId != null'>AND dataset_id = #{datasetId}</if>",
+            "LIMIT 1",
+            "</script>"
+    })
     MetricMetadata checkMetricCodeUnique(MetricMetadata metricMetadata);
 
     /**

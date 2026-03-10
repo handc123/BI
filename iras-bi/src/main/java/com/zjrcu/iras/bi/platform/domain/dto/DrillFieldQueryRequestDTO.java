@@ -18,6 +18,7 @@ public class DrillFieldQueryRequestDTO implements Serializable {
     private Integer pageSize;
     private List<DrillConditionDTO> inheritedConditions;
     private List<DrillRuleGroupDTO> ruleGroups;
+    private List<DrillSortRuleDTO> sortRules;
 
     public Long getDatasetId() {
         return datasetId;
@@ -90,5 +91,12 @@ public class DrillFieldQueryRequestDTO implements Serializable {
     public void setRuleGroups(List<DrillRuleGroupDTO> ruleGroups) {
         this.ruleGroups = ruleGroups;
     }
-}
 
+    public List<DrillSortRuleDTO> getSortRules() {
+        return sortRules;
+    }
+
+    public void setSortRules(List<DrillSortRuleDTO> sortRules) {
+        this.sortRules = sortRules;
+    }
+}

@@ -60,6 +60,8 @@ public class QueryCondition implements Serializable {
     /** 临时ID */
     private String tempId;
 
+    private String tempComponentId;
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -172,6 +174,14 @@ public class QueryCondition implements Serializable {
         this.tempId = tempId;
     }
 
+    public String getTempComponentId() {
+        return tempComponentId;
+    }
+
+    public void setTempComponentId(String tempComponentId) {
+        this.tempComponentId = tempComponentId;
+    }
+
     @Override
     public String toString() {
         return new ToStringBuilder(this, ToStringStyle.MULTI_LINE_STYLE)
@@ -188,6 +198,8 @@ public class QueryCondition implements Serializable {
             .append("parentConditionId", getParentConditionId())
             .append("createTime", getCreateTime())
             .append("updateTime", getUpdateTime())
+            .append("tempId", getTempId())
+            .append("tempComponentId", getTempComponentId())
             .toString();
     }
 }
