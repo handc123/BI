@@ -1,15 +1,20 @@
 package com.zjrcu.iras.bi.metric.service.impl;
 
 import com.zjrcu.iras.bi.metric.domain.MetricMetadata;
+import com.zjrcu.iras.bi.metric.dto.MetricResolveRequestDTO;
+import com.zjrcu.iras.bi.metric.dto.MetricResolveResponseDTO;
 import com.zjrcu.iras.bi.metric.mapper.MetricMetadataMapper;
 import com.zjrcu.iras.bi.metric.service.IMetricMetadataService;
+import com.zjrcu.iras.common.exception.ServiceException;
 import com.zjrcu.iras.common.core.page.TableDataInfo;
+import com.zjrcu.iras.common.utils.SecurityUtils;
 import com.zjrcu.iras.common.utils.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 指标元数据服务实现
@@ -187,5 +192,89 @@ public class MetricMetadataServiceImpl implements IMetricMetadataService {
         }
 
         return successMsg.toString();
+    }
+
+    @Override
+    public MetricResolveResponseDTO resolveMetric(MetricResolveRequestDTO request) {
+        if (request == null || (StringUtils.isEmpty(request.getMetricCode()) && StringUtils.isEmpty(request.getMetricName()))) {
+            throw new ServiceException("metricCode或metricName至少填写一个");
+        }
+
+        Long deptId = SecurityUtils.getDeptId();
+        if (deptId == null) {
+            throw new ServiceException("无法识别当前用户所属机构");
+        }
+
+        MetricMetadata query = new MetricMetadata();
+        query.setDeptId(deptId);
+        query.setStatus("0");
+        if (StringUtils.isNotEmpty(request.getMetricCode())) {
+            query.setMetricCode(request.getMetricCode().trim());
+        }
+        if (StringUtils.isNotEmpty(request.getMetricName())) {
+            query.setMetricName(request.getMetricName().trim());
+        }
+        if (request.getDatasetId() != null) {
+            query.setDatasetId(request.getDatasetId());
+        }
+
+        List<MetricMetadata> list = metricMetadataMapper.selectMetricMetadataList(query);
+        if (list == null || list.isEmpty()) {
+            throw new ServiceException("当前机构未注册该指标");
+        }
+
+        List<MetricMetadata> exactMatched = list.stream()
+                .filter(this::isNormalMetric)
+                .filter(m -> request.getDatasetId() == null || request.getDatasetId().equals(m.getDatasetId()))
+                .filter(m -> matchMetricCodeOrName(m, request))
+                .collect(Collectors.toList());
+
+        if (exactMatched.isEmpty()) {
+            throw new ServiceException("当前机构未注册该指标");
+        }
+        if (exactMatched.size() > 1) {
+            throw new ServiceException("指标标识不唯一，请联系管理员治理指标编码");
+        }
+
+        MetricMetadata matched = exactMatched.get(0);
+        MetricResolveResponseDTO response = new MetricResolveResponseDTO();
+        response.setId(matched.getId());
+        response.setMetricCode(matched.getMetricCode());
+        response.setMetricName(matched.getMetricName());
+        response.setDatasetId(matched.getDatasetId());
+        response.setDeptId(matched.getDeptId());
+        return response;
+    }
+
+    private boolean isNormalMetric(MetricMetadata metric) {
+        if (metric == null) {
+            return false;
+        }
+        return "0".equals(metric.getStatus()) || StringUtils.isEmpty(metric.getStatus());
+    }
+
+    private boolean matchMetricCodeOrName(MetricMetadata metadata, MetricResolveRequestDTO request) {
+        if (metadata == null || request == null) {
+            return false;
+        }
+        String reqCode = normalizeToken(request.getMetricCode());
+        String reqName = normalizeToken(request.getMetricName());
+        String code = normalizeToken(metadata.getMetricCode());
+        String name = normalizeToken(metadata.getMetricName());
+
+        boolean codeMatched = StringUtils.isNotEmpty(reqCode) && reqCode.equals(code);
+        boolean nameMatched = StringUtils.isNotEmpty(reqName) && reqName.equals(name);
+        return codeMatched || nameMatched;
+    }
+
+    private String normalizeToken(String value) {
+        if (StringUtils.isEmpty(value)) {
+            return "";
+        }
+        return value.trim()
+                .toLowerCase()
+                .replace("（", "(")
+                .replace("）", ")")
+                .replaceAll("\\s+", "");
     }
 }

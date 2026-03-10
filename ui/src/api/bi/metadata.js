@@ -32,6 +32,17 @@ export function getMetricMetadataByCode(metricCode) {
 }
 
 /**
+ * 按当前登录机构解析指标（用于穿透）
+ */
+export function resolveMetricMetadata(data) {
+  return request({
+    url: '/bi/metadata/resolve',
+    method: 'post',
+    data
+  })
+}
+
+/**
  * 新增指标元数据
  */
 export function addMetricMetadata(data) {

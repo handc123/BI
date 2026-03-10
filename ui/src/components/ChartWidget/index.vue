@@ -108,7 +108,7 @@ import * as echarts from 'echarts'
 import { executeQuery } from '@/api/bi/query'
 import { injectQueryParams, validateQueryParams, cleanEmptyParams } from '@/utils/queryParamsInjector'
 import { buildChartOption } from '@/utils/chartAdapters'
-import { listMetricMetadata } from '@/api/bi/metadata'
+import { resolveMetricMetadata } from '@/api/bi/metadata'
 
 export default {
   name: 'ChartWidget',
@@ -1114,7 +1114,7 @@ export default {
     },
 
     /**
-     * 处理图表点击 - 打开指标详情对话框
+     * 处理图表点击 - 触发穿透
      */
     async handleChartClick() {
       // 编辑模式下不处理点击
@@ -1140,7 +1140,7 @@ export default {
       // 检查是否有关联的单指标ID（向后兼容）
       const metricId = this.config.dataConfig?.metricId
       if (metricId) {
-        console.log('[ChartWidget] 点击图表，打开单指标详情:', metricId)
+        console.log('[ChartWidget] 点击图表，触发单指标穿透:', metricId)
         this.$emit('metric-click', metricId, this.config.id)
         return
       }
@@ -1160,36 +1160,28 @@ export default {
         return
       }
 
-      // 尝试根据字段名自动查找所有指标
+      // 按当前机构解析指标（支持计算字段场景）
       try {
-        console.log('[ChartWidget] 尝试自动匹配指标字段:', metrics.map(m => m.field || m.fieldName))
-        const response = await listMetricMetadata({ pageNum: 1, pageSize: 1000 })
-        const allMetrics = response.rows || response.data || []
+        console.log('[ChartWidget] 尝试按机构解析指标字段:', metrics.map(m => m.field || m.fieldName))
 
-        // 匹配所有指标
         const matchedMetrics = []
         const metricList = []
 
         for (const metric of metrics) {
-          const fieldName = metric.field || metric.fieldName
-          if (!fieldName) continue
-
-          // 根据 metric_code 匹配（字段名即为metric_code）
-          const matched = allMetrics.find(m => m.metricCode === fieldName)
-
-          if (matched) {
-            matchedMetrics.push(matched.id)
+          const resolved = await this.resolveMetricForDrill(metric)
+          if (resolved && resolved.id) {
+            matchedMetrics.push(resolved.id)
             metricList.push({
-              id: matched.id,
-              code: matched.metricCode,
-              label: metric.label || metric.comment || matched.metricName
+              id: resolved.id,
+              code: resolved.metricCode || resolved.metricName,
+              label: metric.label || metric.comment || resolved.metricName
             })
-            console.log('[ChartWidget] 匹配到指标:', fieldName, '->', matched.metricCode, 'ID:', matched.id)
+            console.log('[ChartWidget] 解析到指标:', metric, '->', resolved.metricCode || resolved.metricName, 'ID:', resolved.id)
           }
         }
 
         if (matchedMetrics.length > 0) {
-          // 触发多指标详情对话框
+          // 触发多指标穿透
           console.log('[ChartWidget] 准备触发 multi-metric-click 事件:', {
             matchedMetrics,
             metricList,
@@ -1198,26 +1190,59 @@ export default {
           this.$emit('multi-metric-click', matchedMetrics, metricList, this.config.id)
           console.log('[ChartWidget] multi-metric-click 事件已发送')
         } else {
-          // 未找到匹配的指标
+          // 未解析到可穿透指标
           const metricNames = metrics.map(m => m.comment || m.fieldName || m.name).join('、')
           this.$message({
-            message: `图表字段（${metricNames}）未匹配到可穿透指标，请在指标元数据中完善配置`,
+            message: `图表字段（${metricNames}）未匹配到可穿透指标，请在当前机构指标元数据中完善配置`,
             type: 'warning',
             duration: 3000,
             showClose: true
           })
-          console.log('[ChartWidget] 未找到匹配的指标元数据')
+          console.log('[ChartWidget] 未解析到可穿透指标')
         }
       } catch (error) {
-        console.error('[ChartWidget] 查询指标元数据失败:', error)
+        console.error('[ChartWidget] 解析指标元数据失败:', error)
         const metricNames = metrics.map(m => m.comment || m.fieldName || m.name).join('、')
         this.$message({
-          message: `查询指标元数据失败：${error.message || error}`,
+          message: `解析指标元数据失败：${error.message || error}`,
           type: 'error',
           duration: 3000,
           showClose: true
         })
       }
+    },
+
+    async resolveMetricForDrill(metric) {
+      if (!metric) {
+        return null
+      }
+
+      // 1) 显式 metricId 优先（兼容历史配置）
+      const explicitId = metric.metricId || metric.id
+      if (explicitId !== undefined && explicitId !== null && String(explicitId) !== '') {
+        return { id: Number(explicitId), metricCode: metric.metricCode, metricName: metric.metricName || metric.label || metric.comment }
+      }
+
+      const metricCode = (metric.metricCode || metric.field || metric.fieldName || '').trim()
+      const metricName = (metric.metricName || metric.label || metric.comment || '').trim()
+      if (!metricCode && !metricName) {
+        return null
+      }
+
+      try {
+        const res = await resolveMetricMetadata({
+          metricCode,
+          metricName,
+          datasetId: this.config?.dataConfig?.datasetId || null
+        })
+        if (res && res.code === 200 && res.data) {
+          return res.data
+        }
+      } catch (e) {
+        // 单个指标解析失败不抛出，交给调用方统一提示
+        console.warn('[ChartWidget] 单个指标解析失败:', { metricCode, metricName, error: e && e.message ? e.message : e })
+      }
+      return null
     },
 
     /**

@@ -1,6 +1,8 @@
 package com.zjrcu.iras.bi.metric.controller;
 
 import com.zjrcu.iras.bi.metric.domain.MetricMetadata;
+import com.zjrcu.iras.bi.metric.dto.MetricResolveRequestDTO;
+import com.zjrcu.iras.bi.metric.dto.MetricResolveResponseDTO;
 import com.zjrcu.iras.bi.metric.service.IMetricMetadataService;
 import com.zjrcu.iras.common.annotation.Log;
 import com.zjrcu.iras.common.core.controller.BaseController;
@@ -84,6 +86,17 @@ public class MetricMetadataController extends BaseController {
             return error("指标元数据不存在");
         }
         return success(metricMetadata);
+    }
+
+    /**
+     * 按当前登录机构解析指标
+     */
+    @PreAuthorize("@ss.hasPermi('bi:metadata:query')")
+    @Operation(description = "按当前登录机构解析指标")
+    @PostMapping("/resolve")
+    public AjaxResult resolve(@RequestBody MetricResolveRequestDTO request) {
+        MetricResolveResponseDTO resolved = metricMetadataService.resolveMetric(request);
+        return success(resolved);
     }
 
     /**

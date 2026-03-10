@@ -1,6 +1,8 @@
 package com.zjrcu.iras.bi.metric.service;
 
 import com.zjrcu.iras.bi.metric.domain.MetricMetadata;
+import com.zjrcu.iras.bi.metric.dto.MetricResolveRequestDTO;
+import com.zjrcu.iras.bi.metric.dto.MetricResolveResponseDTO;
 import com.zjrcu.iras.bi.metric.dto.MetricQueryRequest;
 import com.zjrcu.iras.common.core.page.TableDataInfo;
 
@@ -95,4 +97,12 @@ public interface IMetricMetadataService {
      * @return 结果
      */
     String importMetricMetadata(List<MetricMetadata> metricMetadataList, Boolean isUpdateSupport, String operName);
+
+    /**
+     * 按当前登录机构解析指标
+     *
+     * @param request 解析请求
+     * @return 解析结果
+     */
+    MetricResolveResponseDTO resolveMetric(MetricResolveRequestDTO request);
 }
