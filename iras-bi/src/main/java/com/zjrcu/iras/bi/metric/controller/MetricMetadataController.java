@@ -9,6 +9,7 @@ import com.zjrcu.iras.common.core.controller.BaseController;
 import com.zjrcu.iras.common.core.domain.AjaxResult;
 import com.zjrcu.iras.common.core.page.TableDataInfo;
 import com.zjrcu.iras.common.enums.BusinessType;
+import com.zjrcu.iras.common.utils.SecurityUtils;
 import com.zjrcu.iras.common.utils.StringUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -110,6 +111,9 @@ public class MetricMetadataController extends BaseController {
         try {
             // 设置创建者
             metricMetadata.setCreateBy(getUsername());
+            if (metricMetadata.getDeptId() == null) {
+                metricMetadata.setDeptId(SecurityUtils.getDeptId());
+            }
 
             // 校验指标编码唯一性
             if (!metricMetadataService.checkMetricCodeUnique(metricMetadata)) {

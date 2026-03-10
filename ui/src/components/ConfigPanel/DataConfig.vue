@@ -28,15 +28,11 @@
               </el-form-item>
             </div>
 
-            <div class="dc-toolbar__right">
-              <el-button @click="handleRefresh">刷新数据</el-button>
-              <el-button type="primary" @click="handlePreview">预览数据</el-button>
-            </div>
           </div>
 
           <div class="dc-main">
             <div class="dc-cards">
-              <section class="dc-card">
+              <section class="dc-card dc-card--fields">
                 <header class="dc-card__header">
                   <span class="dc-card__title">字段配置</span>
                 </header>
@@ -104,7 +100,7 @@
                 </div>
               </section>
 
-              <section class="dc-card">
+              <section class="dc-card dc-card--filters">
                 <header class="dc-card__header">
                   <span class="dc-card__title">筛选条件</span>
                 </header>
@@ -118,9 +114,9 @@
                       >
                         <el-select
                           v-model="filter.field"
+                          class="filter-field-select"
                           placeholder="字段"
                           size="small"
-                          style="width: 140px"
                         >
                           <el-option
                             v-for="field in availableFields"
@@ -131,9 +127,9 @@
                         </el-select>
                         <el-select
                           v-model="filter.operator"
+                          class="filter-op-select"
                           placeholder="运算符"
                           size="small"
-                          style="width: 110px"
                         >
                           <el-option label="等于" value="=" />
                           <el-option label="不等于" value="!=" />
@@ -143,13 +139,14 @@
                         </el-select>
                         <el-input
                           v-model="filter.value"
+                          class="filter-value-input"
                           placeholder="值"
                           size="small"
-                          style="flex: 1"
                         />
                         <el-button
                           type="text"
                           icon="el-icon-delete"
+                          class="filter-delete-btn"
                           @click="removeFilter(index)"
                         />
                       </div>
@@ -165,6 +162,11 @@
                   </el-form-item>
                 </div>
               </section>
+
+              <div class="dc-actions">
+                <el-button @click="handleRefresh">刷新数据</el-button>
+                <el-button type="primary" @click="handlePreview">预览数据</el-button>
+              </div>
             </div>
 
             <div class="field-management-area" v-if="dataConfig.datasetId">
@@ -212,6 +214,7 @@
 <script>
 import { listDataSource } from '@/api/bi/datasource'
 import { listDataset, getDatasetData, getDatasetFields } from '@/api/bi/dataset'
+import { addMetricMetadata, resolveMetricMetadata } from '@/api/bi/metadata'
 import FieldManagementPanel from '@/components/FieldManagementPanel'
 import CalculatedFieldDialog from '@/components/CalculatedFieldDialog'
 
@@ -550,7 +553,10 @@ export default {
         ...(d.isCalculated ? {
           expression: d.expression,
           aggregation: d.aggregation,
-          alias: d.alias
+          alias: d.alias,
+          metricId: d.metricId,
+          metricCode: d.metricCode,
+          metricName: d.metricName
         } : {})
       }))
       this.emitChange()
@@ -568,7 +574,10 @@ export default {
         ...(m.isCalculated ? {
           expression: m.expression,
           aggregation: m.aggregation,
-          alias: m.alias
+          alias: m.alias,
+          metricId: m.metricId,
+          metricCode: m.metricCode,
+          metricName: m.metricName
         } : {})
       }))
       // 涔熷悓姝ュ埌 measures 浠ヤ繚鎸佸悜鍚庡吋瀹?
@@ -683,7 +692,7 @@ export default {
     },
 
     // 璁＄畻瀛楁鎻愪氦
-    handleCalculatedFieldSubmit(fieldConfig) {
+    async handleCalculatedFieldSubmit(fieldConfig) {
       
       const existingIndex = this.calculatedFields.findIndex(f => f.name === fieldConfig.name)
       
@@ -692,16 +701,26 @@ export default {
         return
       }
 
+      let savedFieldConfig = { ...fieldConfig }
+      if ((savedFieldConfig.fieldType === 'metric' || !savedFieldConfig.fieldType) && this.dataConfig.datasetId) {
+        try {
+          savedFieldConfig = await this.ensureCalculatedMetricMetadata(savedFieldConfig)
+        } catch (e) {
+          this.$message.error(e && e.message ? e.message : '计算字段指标元数据处理失败')
+          return
+        }
+      }
+
       if (this.currentEditingCalculatedField) {
         // 缂栬緫妯″紡
         const index = this.calculatedFields.findIndex(f => f.name === this.currentEditingCalculatedField.name)
         if (index >= 0) {
-          this.$set(this.calculatedFields, index, fieldConfig)
+          this.$set(this.calculatedFields, index, savedFieldConfig)
           this.$message.success('计算字段更新成功')
         }
       } else {
         // 鏂板妯″紡
-        this.calculatedFields.push(fieldConfig)
+        this.calculatedFields.push(savedFieldConfig)
         this.$message.success('计算字段新增成功')
       }
 
@@ -712,6 +731,53 @@ export default {
       this.$nextTick(() => {
         this.$forceUpdate()
       })
+    },
+
+    async ensureCalculatedMetricMetadata(fieldConfig) {
+      const metricCode = (fieldConfig.name || '').trim()
+      const metricName = (fieldConfig.alias || fieldConfig.name || '').trim()
+      if (!metricCode || !metricName) {
+        throw new Error('计算字段缺少指标编码或名称')
+      }
+
+      const resolvePayload = {
+        metricCode,
+        metricName,
+        datasetId: this.dataConfig.datasetId
+      }
+
+      try {
+        const resolved = await resolveMetricMetadata(resolvePayload)
+        if (resolved && resolved.code === 200 && resolved.data && resolved.data.id) {
+          return {
+            ...fieldConfig,
+            metricId: resolved.data.id,
+            metricCode: resolved.data.metricCode || metricCode,
+            metricName: resolved.data.metricName || metricName
+          }
+        }
+      } catch (e) {
+        // 未命中时继续走创建
+      }
+
+      const createPayload = {
+        metricCode,
+        metricName,
+        datasetId: this.dataConfig.datasetId,
+        technicalFormula: fieldConfig.expression || '',
+        calculationLogic: fieldConfig.expression || '',
+        status: '0'
+      }
+      const created = await addMetricMetadata(createPayload)
+      if (created && created.code === 200 && created.data && created.data.id) {
+        return {
+          ...fieldConfig,
+          metricId: created.data.id,
+          metricCode: created.data.metricCode || metricCode,
+          metricName: created.data.metricName || metricName
+        }
+      }
+      throw new Error((created && created.msg) || '自动注册指标元数据失败')
     },
 
     // 瀛楁鎷栨嫿寮€濮嬶紙鏉ヨ嚜FieldManagementPanel锛?
@@ -778,6 +844,7 @@ export default {
   --text-secondary: #5b6b7c;
   --primary: #2f6fed;
   --primary-soft: #eaf1ff;
+  --dc-panel-height: calc(100vh - 260px);
 
   width: 100%;
   box-sizing: border-box;
@@ -843,7 +910,7 @@ export default {
 .dc-main {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: stretch;
   flex-direction: row;
   width: 100%;
   max-width: 100%;
@@ -859,7 +926,18 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: var(--dc-panel-height);
   box-sizing: border-box;
+}
+
+.dc-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dc-actions .el-button {
+  flex: 1;
 }
 
 .dc-card {
@@ -867,6 +945,17 @@ export default {
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dc-card--fields {
+  flex: 1 1 56%;
+}
+
+.dc-card--filters {
+  flex: 1 1 44%;
 }
 
 .dc-card__header {
@@ -887,6 +976,9 @@ export default {
 
 .dc-card__body {
   padding: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .dc-alert {
@@ -912,7 +1004,8 @@ export default {
   border-radius: 8px;
   background: var(--bg-card);
   overflow: hidden;
-  max-height: calc(100vh - 260px);
+  height: var(--dc-panel-height);
+  max-height: var(--dc-panel-height);
   box-sizing: border-box;
 }
 
@@ -928,29 +1021,50 @@ export default {
   margin-bottom: 0;
 }
 
+.dc-filter-form-item :deep(.el-form-item__label) {
+  width: 52px !important;
+  padding-right: 6px;
+}
+
+.dc-filter-form-item :deep(.el-form-item__content) {
+  margin-left: 52px !important;
+}
+
 .filter-list {
   width: 100%;
 }
 
 .filter-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 8px;
-  padding: 8px;
+  padding: 6px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-subtle);
 }
 
-.filter-item > * {
-  flex-shrink: 0;
+.filter-field-select {
+  grid-column: 1 / 3;
+  width: 100%;
 }
 
-.filter-item .el-input {
-  flex: 1 1 180px;
-  min-width: 0;
+.filter-op-select {
+  grid-column: 1;
+  width: 100%;
+}
+
+.filter-value-input {
+  grid-column: 1 / 3;
+  width: 100%;
+}
+
+.filter-delete-btn {
+  grid-column: 2;
+  justify-self: end;
+  padding: 0;
 }
 
 .drop-zone {
@@ -1041,6 +1155,7 @@ export default {
     min-width: 0;
     max-width: 100%;
     flex: 1 1 auto;
+    height: auto;
   }
 
   .field-management-area {
@@ -1048,6 +1163,8 @@ export default {
     min-width: 0;
     max-width: 100%;
     flex: 1 1 auto;
+    height: auto;
+    max-height: none;
   }
 
   .dc-toolbar {
@@ -1070,6 +1187,7 @@ export default {
   }
 }
 </style>
+
 
 
 
