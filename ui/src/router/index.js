@@ -190,6 +190,20 @@ export const dynamicRoutes = [
         meta: {title: '设计仪表板', activeMenu: '/bi/dashboard', noCache: true}
       }
     ]
+  },
+  {
+    path: '/bi/dashboard/drill',
+    component: Layout,
+    hidden: true,
+    permissions: ['bi:dashboard:view'],
+    children: [
+      {
+        path: ':dashboardId(\\d+)',
+        component: () => import('@/views/bi/dashboard/drill'),
+        name: 'DashboardDrill',
+        meta: {title: '穿透明细', activeMenu: '/bi/dashboard', noCache: true}
+      }
+    ]
   }
 ]
 

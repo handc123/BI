@@ -305,12 +305,10 @@ export default {
     // 处理指标点击事件
     handleMetricClick(metricId) {
       console.log('[DashboardView] 点击指标:', metricId)
-      if (metricId) {
-        this.selectedMetricId = metricId
-        this.selectedMetricIds = [] // 清空多指标列表
-        this.selectedMetricList = []
-        this.metricDialogVisible = true
+      if (!metricId) {
+        return
       }
+      this.navigateToDrill(metricId)
     },
 
     // 处理多指标点击事件
@@ -319,20 +317,39 @@ export default {
       console.log('[DashboardView] metricIds:', metricIds)
       console.log('[DashboardView] metricList:', metricList)
       console.log('[DashboardView] metricIds.length:', metricIds ? metricIds.length : 'null')
-      if (metricIds && metricIds.length > 0) {
-        this.selectedMetricId = null // 清空单指标ID
-        this.selectedMetricIds = metricIds
-        this.selectedMetricList = metricList
-        this.metricDialogVisible = true
-        console.log('[DashboardView] 已打开多指标对话框，visible = true')
-      } else {
+      if (!metricIds || metricIds.length === 0) {
         console.log('[DashboardView] metricIds 为空或长度为0，不打开对话框')
+        return
       }
+
+      // 多指标场景默认取首个（ChartWidget 应确保点击线对应指标排在首位）
+      this.navigateToDrill(metricIds[0])
+    },
+
+    navigateToDrill(metricId) {
+      const snapshot = this.queryParams || {}
+      const query = {
+        metricId: String(metricId),
+        querySnapshot: encodeURIComponent(JSON.stringify(snapshot))
+      }
+
+      // 常用透传字段（机构/日期）做便捷展示
+      if (snapshot.sjbsjgid !== undefined && snapshot.sjbsjgid !== null) {
+        query.orgId = String(snapshot.sjbsjgid)
+      }
+      if (snapshot.load_date) {
+        query.date = String(snapshot.load_date)
+      }
+
+      this.$router.push({
+        path: `/bi/dashboard/drill/${this.dashboardId}`,
+        query
+      })
     },
 
     // 获取组件的条件映射
     getComponentMappings(componentId) {
-      return this.conditionMappings.filter(m => m.componentId === componentId)
+      return this.conditionMappings.filter(m => String(m.componentId) === String(componentId))
     },
 
     // 获取画布样式
