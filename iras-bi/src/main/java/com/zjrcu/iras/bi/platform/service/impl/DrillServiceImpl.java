@@ -173,19 +173,42 @@ public class DrillServiceImpl implements IDrillService {
     }
 
     private Map<String, DatasetFieldVO> buildDatasetFieldMap(Long datasetId) {
-        List<DatasetFieldVO> fields = datasetService.getDatasetFields(datasetId);
+        List<Map<String, Object>> fields = datasetService.getDatasetFields(datasetId);
         if (fields == null || fields.isEmpty()) {
             throw new ServiceException("数据集字段信息为空，无法执行穿透查询");
         }
 
         Map<String, DatasetFieldVO> fieldMap = new HashMap<>();
-        for (DatasetFieldVO field : fields) {
-            if (field == null || StringUtils.isEmpty(field.getFieldName())) {
+        for (Map<String, Object> field : fields) {
+            if (field == null || field.isEmpty()) {
                 continue;
             }
-            fieldMap.put(field.getFieldName().toLowerCase(), field);
+            String fieldName = extractFieldName(field);
+            if (StringUtils.isEmpty(fieldName)) {
+                continue;
+            }
+            DatasetFieldVO vo = new DatasetFieldVO();
+            vo.setFieldName(fieldName);
+            vo.setFieldComment(stringValue(field.get("fieldComment")));
+            vo.setFieldType(stringValue(field.get("fieldType")));
+            fieldMap.put(fieldName.toLowerCase(), vo);
         }
         return fieldMap;
+    }
+
+    private String extractFieldName(Map<String, Object> field) {
+        String[] keys = new String[] {"fieldName", "name", "field", "dbFieldName"};
+        for (String key : keys) {
+            String value = stringValue(field.get(key));
+            if (StringUtils.isNotEmpty(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private List<DrillConditionDTO> normalizeConditions(List<DrillConditionDTO> conditions,
