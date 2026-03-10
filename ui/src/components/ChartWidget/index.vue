@@ -108,7 +108,7 @@ import * as echarts from 'echarts'
 import { executeQuery } from '@/api/bi/query'
 import { injectQueryParams, validateQueryParams, cleanEmptyParams } from '@/utils/queryParamsInjector'
 import { buildChartOption } from '@/utils/chartAdapters'
-import { listMetricMetadata } from '@/api/bi/metric'
+import { listMetricMetadata } from '@/api/bi/metadata'
 
 export default {
   name: 'ChartWidget',
@@ -1151,7 +1151,7 @@ export default {
       if (metrics.length === 0) {
         // 没有配置指标字段
         this.$message({
-          message: '该图表未配置指标字段，请在设计器中拖拽指标字段到"指标"区域',
+          message: '未配置可穿透指标，请在设计器中绑定指标',
           type: 'info',
           duration: 2000,
           showClose: true
@@ -1201,7 +1201,7 @@ export default {
           // 未找到匹配的指标
           const metricNames = metrics.map(m => m.comment || m.fieldName || m.name).join('、')
           this.$message({
-            message: `该图表配置了指标字段（${metricNames}），但未在指标元数据表中找到对应的指标定义`,
+            message: `图表字段（${metricNames}）未匹配到可穿透指标，请在指标元数据中完善配置`,
             type: 'warning',
             duration: 3000,
             showClose: true

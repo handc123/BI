@@ -84,14 +84,6 @@
       </div>
     </div>
 
-    <!-- 指标详情对话框 -->
-    <metric-detail-dialog
-      :visible.sync="metricDialogVisible"
-      :metric-id="selectedMetricId"
-      :metric-ids="selectedMetricIds"
-      :metric-list="selectedMetricList"
-      @close="metricDialogVisible = false"
-    />
   </div>
 </template>
 
@@ -99,23 +91,16 @@
 import { getDashboardConfig } from '@/api/bi/dashboard'
 import ChartWidget from '@/components/ChartWidget'
 import QueryWidget from '@/components/QueryWidget'
-import MetricDetailDialog from '@/components/MetricDetailDialog'
 
 export default {
   name: 'DashboardView',
   components: {
     ChartWidget,
-    QueryWidget,
-    MetricDetailDialog
+    QueryWidget
   },
   data() {
     return {
       loading: false,
-      // 指标详情对话框
-      metricDialogVisible: false,
-      selectedMetricId: null,
-      selectedMetricIds: [],
-      selectedMetricList: [],
       currentDashboard: {
         id: null,
         name: '仪表板查看',

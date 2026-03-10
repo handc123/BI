@@ -293,7 +293,7 @@
 import draggable from 'vuedraggable'
 import { listDataSource } from '@/api/bi/datasource'
 import { listDataset, getDatasetFields } from '@/api/bi/dataset'
-import { listMetricMetadata } from '@/api/bi/metric'
+import { listMetricMetadata } from '@/api/bi/metadata'
 
 export default {
   name: 'DataConfigPanel',
